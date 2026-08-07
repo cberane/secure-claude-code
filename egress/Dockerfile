@@ -1,6 +1,6 @@
 # Egress allowlist proxy (Squid), digest-pinned, runs as the unprivileged
 # "proxy" user with a read-only rootfs (see docker-compose.yml).
-FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
+FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258
 
 ENV DEBIAN_FRONTEND=noninteractive
 

@@ -9,7 +9,7 @@
 #   runtime  — default target: slim toolchain + Claude Code, non-root user
 #   dev-php  — optional target (--target dev-php): adds php-cli + composer
 
-ARG NODE_IMAGE=node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
 
 ########################################################################
 # builder — Claude Code npm install, isolated from the runtime image
