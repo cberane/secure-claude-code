@@ -35,10 +35,12 @@ asking questions (auto mode).
   nothing else under `$HOME` needs to be writable. `DISABLE_AUTOUPDATER=1`
   because the npm prefix is read-only at runtime — updates happen by bumping
   `CLAUDE_CODE_VERSION` and rebuilding.
-- **`CLAUDE.md` is baked into the image and copied into the config volume on
-  every start.** The agent works in arbitrary mounted projects; placing the
-  rules in `CLAUDE_CONFIG_DIR` makes them global for every project without
-  polluting the mounted repo.
+- **`sandbox/CLAUDE.md` is baked into the image and copied into the config
+  volume on every start.** The agent works in arbitrary mounted projects;
+  placing the rules in `CLAUDE_CONFIG_DIR` makes them global for every
+  project without polluting the mounted repo. The repo-root `CLAUDE.md` is a
+  separate file for the host-side development environment — the two must not
+  be merged, or host sessions inherit sandbox restrictions.
 - **`/tmp` is `noexec`.** Known friction: native npm module builds that
   execute from `$TMPDIR` may fail; workaround is building inside
   `/workspace`. Accepted for the hardening win.

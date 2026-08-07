@@ -85,7 +85,7 @@ COPY --chmod=0755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # Agent rules, copied into the persistent Claude config volume by the
 # entrypoint so they apply to every mounted project.
-COPY CLAUDE.md /etc/claude/CLAUDE.md
+COPY sandbox/CLAUDE.md /etc/claude/CLAUDE.md
 
 ENV PATH=/home/dev/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     # All Claude Code state lives in the persistent named volume.

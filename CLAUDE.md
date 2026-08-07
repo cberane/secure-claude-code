@@ -1,45 +1,35 @@
-# Rules for Claude Code inside this sandbox
+# Development environment (HOST)
 
-You are running inside a hardened container. These rules are enforced by
-tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
+This repo builds and maintains a hardened Claude Code sandbox. Sessions in
+this directory run on the **host** (WSL2), not inside the sandbox: Docker,
+full network access, and git remotes (`push`, `pull`, `fetch`) are all
+available and fine to use here.
 
-## Git: commits are local, remotes are host-only
+Do not confuse this file with `sandbox/CLAUDE.md` — that is the hardened
+rule set baked into the container image (`/etc/claude/CLAUDE.md`, copied to
+the agent's config dir on every start). Its restrictions (git wrapper,
+egress allowlist, read-only rootfs, "HOST ACTION REQUIRED" prompts) apply
+only *inside* the sandbox, never to this development environment.
 
-- You MAY: `git add`, `commit`, `status`, `log`, `diff`, `branch`, `merge`,
-  local `rebase`, `stash`, `tag`.
-- You MUST NOT: `push`, `pull`, `fetch`, `clone`, `remote add`,
-  `remote set-url`, `submodule update --remote`, `request-pull`. These are
-  blocked by a git wrapper and the egress proxy.
-- When a push/pull/fetch is needed: **STOP**. Print the exact command the
-  user must run on the host, e.g.
+## Editing the sandbox rules
 
-  ```
-  ┌─ HOST ACTION REQUIRED ────────────────────────────────
-  │ Run this on the HOST, then confirm here:
-  │
-  │   cd <project> && git push origin feature/xyz
-  │
-  └───────────────────────────────────────────────────────
-  ```
+- Rules for the agent inside the container belong in `sandbox/CLAUDE.md`.
+- After changing it, rebuild (`make build`) and run `make doctor` — several
+  doctor checks assert behavior those rules describe (git blocking, commit
+  trailer rejection, egress policy).
 
-  Then **wait for the user to confirm** before continuing. Do not guess the
-  result, do not retry inside the container, do not look for workarounds.
+## Commit messages (this repo)
 
-## Commit messages
+- Conventional Commits: `type(scope): subject`, imperative, ≤72 chars.
+- NEVER add `Co-Authored-By:` trailers, "Generated with Claude Code" lines,
+  attribution footers, or emojis. The commit-msg hook rejects trailers.
+- Commits are signed automatically; don't change `user.signingkey`, `gpg.*`
+  or `core.hooksPath`.
 
-- NEVER add `Co-Authored-By:` trailers.
-- NEVER add "Generated with Claude Code", tool attribution, advertising
-  footers, or emojis (including 🤖).
-- Use Conventional Commits: `type(scope): subject` with types
-  feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert.
-- Subject line: imperative mood, at most 72 characters.
-- Commits are signed automatically (SSH signing key, preconfigured). Never
-  change `user.signingkey`, `gpg.*` or `core.hooksPath` settings.
+## Useful entry points
 
-## Environment constraints (informational)
-
-- Network egress is restricted to an allowlist (Anthropic API, npm).
-  Unreachable hosts are blocked by policy, not broken — do not debug them.
-- Only `/workspace`, `/tmp` and `~/.claude` are writable.
-- If the pre-commit hook reports the signing key as too old, stop and ask
-  the user to run `make rotate-signing-key` on the host.
+- `make build` / `make doctor` — rebuild images, run the 18 end-to-end checks.
+- `.claude/skills/update-image` — refresh all version pins (digests, Claude
+  Code, Composer) with automatic rollback.
+- `DECISIONS.md` — records the security/architecture decisions; update it
+  when a decision changes.
