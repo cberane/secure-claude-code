@@ -48,6 +48,9 @@ if [ "${1:-}" = "--host" ]; then
     COMPOSE="$ENGINE compose"
     if [ "$ENGINE" = "podman" ]; then
         COMPOSE="$ENGINE compose -f docker-compose.yml -f compose.podman.yml"
+        if [ -f docker-compose.override.yml ]; then
+            COMPOSE="$COMPOSE -f docker-compose.override.yml"
+        fi
     fi
 
     if [ ! -f .env ]; then

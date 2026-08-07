@@ -129,6 +129,23 @@ collapses.** In that case switch to the ssh-agent variant documented in
 `DECISIONS.md`, where only signatures — never key material — enter the
 container.
 
+## Local overrides
+
+Two gitignored files hold machine-specific configuration; git tracks only
+their templates:
+
+- `egress/allowlist.txt` (from `egress/allowlist.template.txt`) — created
+  automatically on first `make` run.
+- `docker-compose.override.yml` (from `docker-compose.override.example.yml`)
+  — optional; copy it yourself if you need compose tweaks (build target,
+  resource limits, extra **read-only** mounts, seccomp). Docker auto-loads
+  it; with `ENGINE=podman` the Makefile appends it explicitly.
+
+An override can silently weaken the hardening — **run `make doctor` after
+every override change**. Note that `ENGINE` must be given on the make
+command line (`make ENGINE=podman …`); as a plain environment variable it
+would lose against the value in `.env`.
+
 ## Podman (rootless)
 
 ```sh

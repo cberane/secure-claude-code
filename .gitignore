@@ -13,6 +13,9 @@ id_*
 # Local, per-machine egress policy (created from egress/allowlist.template.txt)
 egress/allowlist.txt
 
+# Local, per-machine compose tweaks (see docker-compose.override.example.yml)
+docker-compose.override.yml
+
 # Local state
 .claude/
 *.log

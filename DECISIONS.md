@@ -65,6 +65,12 @@ asking questions (auto mode).
   live allowlist diverges per machine/developer; make copies the template
   once (file target, never overwritten afterwards) so local additions don't
   create git noise. Same pattern as `.env` / `.env.example`.
+- **Local compose override via `docker-compose.override.yml`** (gitignored,
+  tracked example file): the native compose idiom for per-machine tweaks.
+  Docker auto-loads the name; the podman path appends it to its explicit
+  `-f` list (auto-loading is disabled once `-f` is used). Risk accepted:
+  overrides can weaken hardening — mitigated by the README's "run
+  `make doctor` after override changes" rule, not by tooling.
 - **DNS-rebinding note:** the RFC1918 `dst` deny in squid protects the LAN
   even if an allowlisted domain resolves to a private address.
 

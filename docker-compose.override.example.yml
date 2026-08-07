@@ -1,0 +1,30 @@
+# Local compose override — EXAMPLE.
+#
+# Copy to docker-compose.override.yml (gitignored) for machine-specific
+# tweaks that don't belong in git. Docker Compose auto-loads that filename;
+# the Makefile adds it explicitly for podman.
+#
+# WARNING: an override can silently WEAKEN the hardening (extra mounts,
+# capabilities, network changes). Run `make doctor` after every change —
+# it re-verifies the security posture.
+#
+# Copied unedited, this file is a harmless no-op.
+
+services: {}
+
+# --- examples (move under `services:` and uncomment) -----------------------
+#
+# services:
+#   claude-code:
+#     # PHP toolchain on this machine only:
+#     build:
+#       target: dev-php
+#     # More memory for a heavy project:
+#     mem_limit: 8g
+#     # Opt-in custom seccomp profile (read security/seccomp.json first!):
+#     security_opt:
+#       - no-new-privileges:true
+#       - seccomp=./security/seccomp.json
+#     # Extra READ-ONLY mount (never add writable host mounts):
+#     volumes:
+#       - ~/.cache/composer:/home/dev/.cache/composer:ro

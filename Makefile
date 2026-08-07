@@ -9,8 +9,14 @@
 ENGINE ?= docker
 export ENGINE
 ifeq ($(ENGINE),podman)
+# Explicit -f list disables compose's auto-loading, so the local override
+# (if present) must be appended by hand — last file wins on conflicts.
 COMPOSE = $(ENGINE) compose -f docker-compose.yml -f compose.podman.yml
+ifneq ($(wildcard docker-compose.override.yml),)
+COMPOSE += -f docker-compose.override.yml
+endif
 else
+# Docker auto-loads docker-compose.override.yml when it exists.
 COMPOSE = $(ENGINE) compose
 endif
 
