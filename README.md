@@ -50,6 +50,12 @@ make build
 make claude               # or: make yolo  (--dangerously-skip-permissions)
 ```
 
+On first run, `make` also creates the local egress policy
+`egress/allowlist.txt` from `egress/allowlist.template.txt`. The local copy
+is gitignored — extend it freely per machine (then
+`make build && make restart`); only changes every developer needs go into
+the tracked template.
+
 On first start, `make` provisions a dedicated **signing-only** SSH key under
 `secrets/git-signing/` (host-side, gitignored) and prints the public key.
 Register it at your forge as a **Signing Key** — *not* an authentication

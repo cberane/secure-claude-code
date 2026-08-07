@@ -61,6 +61,10 @@ asking questions (auto mode).
   the wildcard covers it.
 - **statsig/sentry telemetry domains are allowlisted** so Claude Code doesn't
   log connection errors; they can be removed freely (documented in the file).
+- **`allowlist.txt` is local, `allowlist.template.txt` is tracked.** The
+  live allowlist diverges per machine/developer; make copies the template
+  once (file target, never overwritten afterwards) so local additions don't
+  create git noise. Same pattern as `.env` / `.env.example`.
 - **DNS-rebinding note:** the RFC1918 `dst` deny in squid protects the LAN
   even if an allowlisted domain resolves to a private address.
 

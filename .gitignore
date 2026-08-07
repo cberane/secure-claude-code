@@ -10,6 +10,9 @@ id_*
 *.p12
 *.pfx
 
+# Local, per-machine egress policy (created from egress/allowlist.template.txt)
+egress/allowlist.txt
+
 # Local state
 .claude/
 *.log

@@ -1,4 +1,11 @@
-# Egress allowlist — squid dstdomain format.
+# Egress allowlist TEMPLATE — squid dstdomain format.
+#
+# This file is the tracked template. The proxy uses the LOCAL, gitignored
+# copy egress/allowlist.txt, created from this template on first `make` run.
+# Edit allowlist.txt for machine-local needs without touching git; changes
+# that every developer needs belong in this template.
+# After editing the local copy: make build && make restart
+#
 #   example.com   matches exactly example.com
 #   .example.com  matches example.com AND all subdomains
 #
