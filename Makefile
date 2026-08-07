@@ -7,7 +7,12 @@
 -include .env
 
 ENGINE ?= docker
+export ENGINE
+ifeq ($(ENGINE),podman)
+COMPOSE = $(ENGINE) compose -f docker-compose.yml -f compose.podman.yml
+else
 COMPOSE = $(ENGINE) compose
+endif
 
 .PHONY: help build up down restart shell claude yolo doctor keygen \
         rotate-signing-key install-hooks clean distclean

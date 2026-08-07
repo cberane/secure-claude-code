@@ -126,15 +126,20 @@ container.
 ## Podman (rootless)
 
 ```sh
+systemctl --user enable --now podman.socket   # once — compose provider needs it
 make ENGINE=podman build
-PODMAN_USERNS=keep-id make ENGINE=podman claude
+make ENGINE=podman claude
 ```
 
 Differences from Docker:
 
 - **User namespace:** rootless podman maps container UIDs into your subuid
-  range. Use `PODMAN_USERNS=keep-id` (and set `UID`/`GID` in `.env` to your
-  real IDs, `id -u` / `id -g`) so `/workspace` files stay owned by you.
+  range. With `ENGINE=podman` the Makefile automatically layers
+  `compose.podman.yml` (`userns_mode: keep-id`) on top, so `/workspace`
+  files stay owned by you and the signing-key mount passes its owner check.
+  Set `UID`/`GID` in `.env` to your real IDs (`id -u` / `id -g`).
+- **tmpfs options:** the compose file uses `mode=1777` instead of docker's
+  `uid=`/`gid=` tmpfs options, which podman rejects.
 - **SELinux hosts** (Fedora & friends): add `:Z` to the bind-mount suffixes
   in `docker-compose.yml` (`.../workspace:rw,Z` and `...:ro,Z`), or mounts
   will be denied by SELinux.

@@ -46,6 +46,9 @@ if [ "${1:-}" = "--host" ]; then
     ENGINE="${ENGINE:-$(sed -n 's/^ENGINE=//p' .env 2>/dev/null | tail -1)}"
     ENGINE="${ENGINE:-docker}"
     COMPOSE="$ENGINE compose"
+    if [ "$ENGINE" = "podman" ]; then
+        COMPOSE="$ENGINE compose -f docker-compose.yml -f compose.podman.yml"
+    fi
 
     if [ ! -f .env ]; then
         echo "doctor: .env is missing — copy .env.example to .env and set PROJECTS_DIR." >&2

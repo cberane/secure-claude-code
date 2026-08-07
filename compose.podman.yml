@@ -1,0 +1,9 @@
+# Podman-rootless overlay — applied automatically by the Makefile when
+# ENGINE=podman (docker rejects the "keep-id" value, hence a separate file).
+#
+# keep-id maps your host UID/GID to the same IDs inside the container, so
+# /workspace files stay owned by you and the read-only signing-key mount
+# passes the entrypoint's owner check. Set UID/GID in .env to `id -u`/`id -g`.
+services:
+  claude-code:
+    userns_mode: keep-id

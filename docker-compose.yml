@@ -38,8 +38,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # mode=1777 (not uid=/gid= options): sticky world-writable is portable —
+    # podman rejects uid=/gid= tmpfs options that docker accepts.
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=${TMP_SIZE:-512m},uid=${UID:-1000},gid=${GID:-1000}
+      - /tmp:rw,noexec,nosuid,size=${TMP_SIZE:-512m},mode=1777
     pids_limit: ${PIDS_LIMIT:-512}
     mem_limit: ${MEM_LIMIT:-4g}
     cpus: ${CPUS:-2}
@@ -68,9 +70,9 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m
-      - /var/log/squid:rw,nosuid,size=16m,uid=13,gid=13
-      - /var/spool/squid:rw,nosuid,size=16m,uid=13,gid=13
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+      - /var/log/squid:rw,nosuid,size=16m,mode=1777
+      - /var/spool/squid:rw,nosuid,size=16m,mode=1777
     pids_limit: 128
     mem_limit: 256m
     user: proxy
