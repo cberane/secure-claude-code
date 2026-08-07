@@ -21,7 +21,7 @@ COMPOSE = $(ENGINE) compose
 endif
 
 .PHONY: help build up down restart shell claude yolo doctor keygen \
-        rotate-signing-key install-hooks clean distclean
+        rotate-signing-key install-hooks prune clean distclean
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -67,6 +67,9 @@ doctor: keygen egress/allowlist.txt ## Run the full hardening self-test (host + 
 install-hooks: ## Install the secret-blocking pre-commit hook into THIS repo
 	install -m 0755 security/pre-commit .git/hooks/pre-commit
 	@echo "Installed security/pre-commit -> .git/hooks/pre-commit"
+
+prune: ## Reclaim disk space from dangling images (safe: untagged layers only)
+	$(ENGINE) image prune -f
 
 clean: ## Remove containers and locally built images (keeps volumes & secrets)
 	$(COMPOSE) down --remove-orphans --rmi local

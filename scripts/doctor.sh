@@ -91,6 +91,14 @@ if [ "${1:-}" = "--host" ]; then
     report 15 $ok "empty secrets/ triggers host-side key provisioning + pubkey display"
     chmod -R u+w "$tmpd" && rm -rf "$tmpd"
 
+    # Informational, never affects the check results: old images left behind
+    # by rebuilds (e.g. after the update-image skill) linger as dangling.
+    dangling="$($ENGINE images -q -f dangling=true 2>/dev/null | wc -l)"
+    if [ "$dangling" -gt 0 ]; then
+        echo
+        echo "note: $dangling dangling image(s) from previous builds — run 'make prune' to reclaim disk space."
+    fi
+
     echo
     if [ "$container_rc" -eq 0 ] && [ "$FAIL" -eq 0 ]; then
         printf "${GREEN}doctor: all host and container checks passed.${RESET}\n"

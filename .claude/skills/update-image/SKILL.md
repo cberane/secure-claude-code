@@ -102,11 +102,17 @@ $(ENGINE from .env) compose run --rm -T claude-code claude --version
 ## Step 7a — Success: keep
 
 1. Remove the rollback tags (`docker rmi claude-sandbox-claude-code:rollback
-   claude-sandbox-egress-proxy:rollback`).
-2. Commit (signed, conventional, no attribution):
+   claude-sandbox-egress-proxy:rollback`). If a rollback tag is held by a
+   RUNNING container, untag with `-f` (safe — only removes the name) and do
+   not touch the container itself.
+2. Reclaim disk space: `make prune` (engine-aware `image prune -f`; the
+   superseded images are dangling now, nothing tagged is removed).
+3. Commit (signed, conventional, no attribution):
    `build: bump pinned image and tool versions`
    with a body listing each pin old → new.
-3. Report the version table to the user. Do NOT push.
+4. Report the version table to the user. Do NOT push. If a long-running
+   sandbox container is still up on the old image, mention it picks up the
+   new image on its next recreate.
 
 ## Step 7b — Any failure: roll back
 
