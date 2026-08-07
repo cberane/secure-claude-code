@@ -14,10 +14,10 @@ sandbox.
 
 | Pin | File | Location |
 |---|---|---|
-| `node:22-bookworm-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
+| `node:24-bookworm-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
 | `@anthropic-ai/claude-code` version | `Dockerfile` | `ARG CLAUDE_CODE_VERSION=` |
 | Composer version + sha256 | `Dockerfile` | `ARG COMPOSER_VERSION=` / `ARG COMPOSER_SHA256=` |
-| `debian:bookworm-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
+| `debian:trixie-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
 
 ## Step 1 — Preconditions
 
@@ -30,8 +30,8 @@ sandbox.
 ```sh
 # Base image digests (index digest — works regardless of ENGINE, needs docker;
 # fallback: skopeo inspect --format '{{.Digest}}' docker://docker.io/library/<image>):
-docker buildx imagetools inspect node:22-bookworm-slim   | awk '/^Digest:/{print $2}'
-docker buildx imagetools inspect debian:bookworm-slim    | awk '/^Digest:/{print $2}'
+docker buildx imagetools inspect node:24-bookworm-slim   | awk '/^Digest:/{print $2}'
+docker buildx imagetools inspect debian:trixie-slim      | awk '/^Digest:/{print $2}'
 
 # Claude Code (npm dist-tag latest):
 npm view @anthropic-ai/claude-code version
@@ -42,17 +42,17 @@ curl -fsS "https://getcomposer.org/download/${V}/composer.phar.sha256sum" | cut 
 ```
 
 Rules:
-- Stay on the same base-image *tags* (`22-bookworm-slim`, `bookworm-slim`) —
-  only refresh digests. A major/tag bump (Node 24, next Debian release) is a
+- Stay on the same base-image *tags* (`24-bookworm-slim`, `trixie-slim`) —
+  only refresh digests. A major/tag bump (Node 26, next Debian release) is a
   human decision: never apply it unasked in this skill, but DO detect and
   report it (see below).
 - Staleness detection for the egress base: compare the digest of
-  `debian:stable-slim` with the digest of `debian:bookworm-slim`. If they
-  differ, Debian stable has moved past bookworm — tell the user a newer
+  `debian:stable-slim` with the digest of `debian:trixie-slim`. If they
+  differ, Debian stable has moved past trixie — tell the user a newer
   Debian release is available for `egress/Dockerfile` and offer to bump the
   tag as a separate, explicitly confirmed change (new tag + its digest, then
   the same build/verify/rollback cycle). Same idea for Node: check whether
-  `node:lts-bookworm-slim` still matches major 22 (`docker run --rm
+  `node:lts-bookworm-slim` still matches major 24 (`docker run --rm
   node:lts-bookworm-slim node --version` or the npm dist metadata).
 - Never write a Composer version without its matching checksum from the
   `.sha256sum` URL. If the checksum fetch fails, keep the old Composer pin.
