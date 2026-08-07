@@ -91,7 +91,7 @@ composer stage; otherwise additionally verify the optional stage builds:
 Both must succeed:
 
 ```sh
-make doctor    # all 18 checks green, exit code 0
+make doctor    # all 19 checks green, exit code 0
 ```
 
 ```sh

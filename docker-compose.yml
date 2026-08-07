@@ -54,6 +54,7 @@ services:
       - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
       - claude-config:/home/dev/.claude
       - ./secrets/git-signing/:/run/secrets/git-signing/:ro
+      - egress-logs:/var/log/egress:ro
     working_dir: /workspace
     stdin_open: true
     tty: true
@@ -71,8 +72,9 @@ services:
       - ALL
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=64m,mode=1777
-      - /var/log/squid:rw,nosuid,size=16m,mode=1777
       - /var/spool/squid:rw,nosuid,size=16m,mode=1777
+    volumes:
+      - egress-logs:/var/log/squid
     pids_limit: 128
     mem_limit: 256m
     user: proxy
@@ -92,3 +94,12 @@ networks:
 volumes:
   # Persistent Claude Code session/config state (OAuth token lives here).
   claude-config:
+  # Squid access log, shared read-only into the sandbox for blocked-domains.
+  # tmpfs-backed: size-capped, ephemeral (gone when the last user stops);
+  # additionally truncated by the proxy entrypoint on every start.
+  egress-logs:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=16m,mode=1777"

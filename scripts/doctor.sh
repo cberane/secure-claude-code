@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# doctor.sh — hardening self-test. Covers the 18 acceptance criteria.
+# doctor.sh — hardening self-test. Covers the 19 acceptance criteria.
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
 #                                Runs host-side checks 11 and 15, and executes
@@ -59,7 +59,7 @@ if [ "${1:-}" = "--host" ]; then
     fi
     PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1)"
 
-    echo "=== Container-side checks (1-10, 12-14, 16-18) ==="
+    echo "=== Container-side checks (1-10, 12-14, 16-19) ==="
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
@@ -263,6 +263,14 @@ rc2=$?
 good_count="$(git_rot log --show-signature 2>&1 | grep -c 'Good "git" signature')"
 { [ $rc1 -eq 0 ] && [ $rc2 -eq 0 ] && [ "$good_count" -eq 2 ]; }
 report 18 $? "after rotation, old AND new commit signatures verify" "good signatures: $good_count/2 $(cat "$WORK/rot1.err" "$WORK/rot2.err" 2>/dev/null | head -1)"
+
+# --- 19: blocked-domains reports the domain denied in check 6 -------------
+# Depends on check 6 having already sent a (denied) https://example.com
+# request through the proxy earlier in this run.
+out="$(blocked-domains 2>&1)"
+{ printf '%s' "$out" | grep -q 'example\.com' \
+    && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; }
+report 19 $? "blocked-domains lists proxy-denied domains with host instructions"
 
 cd /
 summary

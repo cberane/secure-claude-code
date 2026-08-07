@@ -63,6 +63,15 @@ asking questions (auto mode).
   the wildcard covers it.
 - **statsig/sentry telemetry domains are allowlisted** so Claude Code doesn't
   log connection errors; they can be removed freely (documented in the file).
+- **The squid access log is duplicated onto a shared volume** (`egress-logs`,
+  tmpfs-backed, 16m cap) mounted read-only into the sandbox so the
+  `blocked-domains` helper can report proxy-denied domains. Exposure is nil:
+  the sandbox is the proxy's only client, so it sees exclusively its own
+  traffic. The proxy entrypoint truncates the log world-readable on every
+  start (uid-mapping-proof under podman keep-id), and the tmpfs volume
+  evaporates when the stack stops. Accepted risk: squid exits fatally if the
+  log becomes unwritable (a full 16m tmpfs needs ~100k denial lines);
+  `make restart` recovers.
 - **`allowlist.txt` is local, `allowlist.template.txt` is tracked.** The
   live allowlist diverges per machine/developer; make copies the template
   once (file target, never overwritten afterwards) so local additions don't

@@ -66,7 +66,7 @@ key — then confirm the prompt. Authenticate Claude Code either via
 Verify the hardening any time:
 
 ```sh
-make doctor               # 18 red/green acceptance checks
+make doctor               # 19 red/green acceptance checks
 ```
 
 ## Daily workflow
@@ -80,6 +80,14 @@ When the agent needs a push/pull it stops and prints a
 `HOST ACTION REQUIRED` block with the exact command. Run it on the host,
 then tell the agent to continue. The same block appears if you try a
 network git command yourself in the container shell.
+
+The same protocol covers blocked egress: when a request is denied by the
+proxy (403), the agent runs `blocked-domains`, which lists every domain
+denied since the last proxy restart in a `HOST ACTION REQUIRED` block.
+Review the list, append only the genuinely needed domains to
+`egress/allowlist.txt`, then `make build && make restart`. Add domains
+sparingly — the security model depends on a narrow allowlist (see
+"Signing key exfiltration trade-off" below), and never add git hosts.
 
 ## Commit signing & key rotation
 

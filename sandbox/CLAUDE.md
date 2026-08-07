@@ -39,7 +39,13 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
 ## Environment constraints (informational)
 
 - Network egress is restricted to an allowlist (Anthropic API, npm).
-  Unreachable hosts are blocked by policy, not broken — do not debug them.
+  Unreachable hosts are blocked by policy, not broken. If a request fails
+  with a proxy 403 or "CONNECT tunnel failed": do NOT debug or retry.
+  Run `blocked-domains` (pass additional needed domains as arguments) —
+  it lists every domain the proxy denied since its last restart. Print its
+  HOST ACTION REQUIRED box verbatim, then **STOP and wait for the user to
+  confirm** the allowlist change and proxy restart — the same protocol as
+  git remote operations.
 - Only `/workspace`, `/tmp` and `~/.claude` are writable.
 - If the pre-commit hook reports the signing key as too old, stop and ask
   the user to run `make rotate-signing-key` on the host.

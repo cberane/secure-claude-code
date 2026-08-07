@@ -10,10 +10,12 @@ RUN apt-get update \
 
 COPY squid.conf /etc/squid/squid.conf
 COPY allowlist.txt /etc/squid/allowlist.txt
+COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
 EXPOSE 3128
 
 USER proxy
 
+# Entrypoint pre-creates the shared access log, then runs squid with
 # -N: no daemonize (PID 1), config validated at startup.
-CMD ["squid", "-N", "-f", "/etc/squid/squid.conf"]
+CMD ["/usr/local/bin/entrypoint.sh"]

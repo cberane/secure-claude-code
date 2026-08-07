@@ -28,7 +28,7 @@ only *inside* the sandbox, never to this development environment.
 
 ## Useful entry points
 
-- `make build` / `make doctor` — rebuild images, run the 18 end-to-end checks.
+- `make build` / `make doctor` — rebuild images, run the 19 end-to-end checks.
 - `.claude/skills/update-image` — refresh all version pins (digests, Claude
   Code, Composer) with automatic rollback.
 - `DECISIONS.md` — records the security/architecture decisions; update it

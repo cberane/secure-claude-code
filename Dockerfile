@@ -79,6 +79,7 @@ COPY --chmod=0755 scripts/git-wrapper.sh /usr/local/bin/git
 # and signing-key age without polluting the mounted project repo.
 COPY --chmod=0755 git-hooks/commit-msg git-hooks/pre-commit /opt/git-hooks/
 COPY --chmod=0755 scripts/check-key-age.sh /usr/local/bin/check-key-age
+COPY --chmod=0755 scripts/blocked-domains.sh /usr/local/bin/blocked-domains
 COPY --chmod=0755 scripts/doctor.sh /usr/local/bin/doctor
 COPY --chmod=0755 tests/make-fixtures.sh /usr/local/bin/make-fixtures
 COPY --chmod=0755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
