@@ -128,8 +128,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Composer: version-pinned download, checksum-verified. No installer script.
-ARG COMPOSER_VERSION=2.8.12
-ARG COMPOSER_SHA256=f446ea719708bb85fcbf4ef18def5d0515f1f9b4d703f6d820c9c1656e10a2f2
+ARG COMPOSER_VERSION=2.10.2
+ARG COMPOSER_SHA256=5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027
 
 RUN curl -fsSLo /usr/local/bin/composer \
         "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar" \
