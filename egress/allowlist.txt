@@ -15,6 +15,7 @@
 api.anthropic.com
 console.anthropic.com
 claude.ai
+platform.claude.com
 # Telemetry/feature flags used by Claude Code (harmless to remove, but the
 # CLI logs connection errors without them):
 statsig.anthropic.com
