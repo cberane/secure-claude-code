@@ -1,0 +1,15 @@
+# Never let secrets or local state into the build context
+.env
+.env.*
+secrets/
+*.key
+*.pem
+id_*
+*.p12
+*.pfx
+.git/
+.claude/
+*.log
+tmp/
+README.md
+DECISIONS.md

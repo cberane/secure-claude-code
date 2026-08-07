@@ -1,0 +1,16 @@
+# Secrets — never commit key material or credentials
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+*.key
+*.pem
+id_*
+*.p12
+*.pfx
+
+# Local state
+.claude/
+*.log
+tmp/

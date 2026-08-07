@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# pre-commit hook (container-side, via core.hooksPath) — signing-key age gate.
+#
+#   age >= SIGNING_KEY_WARN_DAYS : warn once per session, commit proceeds
+#   age >= SIGNING_KEY_MAX_DAYS  : abort with rotation instructions
+#                                  (unless SIGNING_KEY_ENFORCE=false)
+set -u
+
+if command -v check-key-age >/dev/null 2>&1; then
+    CHECK=check-key-age
+else
+    # Host-side fallback (when this hook is exercised outside the container).
+    CHECK="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../scripts/check-key-age.sh"
+fi
+
+"$CHECK" --context precommit
+rc=$?
+
+if [ "$rc" -ge 2 ]; then
+    echo "pre-commit: commit blocked — signing key must be rotated first." >&2
+    exit 1
+fi
+
+exit 0

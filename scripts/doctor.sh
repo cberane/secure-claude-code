@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# doctor.sh — hardening self-test. Covers the 18 acceptance criteria.
+#
+#   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
+#                                Runs host-side checks 11 and 15, and executes
+#                                the container-side checks via compose.
+#   doctor (inside container)  : container-side checks (all others).
+#
+# Output: one green PASS / red FAIL line per check, non-zero exit if any fail.
+set -u
+
+PASS=0
+FAIL=0
+GREEN='\033[32m'; RED='\033[31m'; RESET='\033[0m'
+
+report() { # report <num> <ok:0|1> <description> [detail]
+    local num="$1" ok="$2" desc="$3" detail="${4:-}"
+    if [ "$ok" -eq 0 ]; then
+        printf "${GREEN}PASS${RESET}  #%-2s %s\n" "$num" "$desc"
+        PASS=$((PASS + 1))
+    else
+        printf "${RED}FAIL${RESET}  #%-2s %s%s\n" "$num" "$desc" "${detail:+ — $detail}"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
+summary() {
+    echo
+    if [ "$FAIL" -eq 0 ]; then
+        printf "${GREEN}All %d checks passed.${RESET}\n" "$PASS"
+        exit 0
+    else
+        printf "${RED}%d passed, %d FAILED.${RESET}\n" "$PASS" "$FAIL"
+        exit 1
+    fi
+}
+
+########################################################################
+# HOST MODE
+########################################################################
+if [ "${1:-}" = "--host" ]; then
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    repo_root="$(cd "$script_dir/.." && pwd)"
+    cd "$repo_root"
+
+    ENGINE="${ENGINE:-$(sed -n 's/^ENGINE=//p' .env 2>/dev/null | tail -1)}"
+    ENGINE="${ENGINE:-docker}"
+    COMPOSE="$ENGINE compose"
+
+    if [ ! -f .env ]; then
+        echo "doctor: .env is missing — copy .env.example to .env and set PROJECTS_DIR." >&2
+        exit 1
+    fi
+    PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1)"
+
+    echo "=== Container-side checks (1-10, 12-14, 16-18) ==="
+    $COMPOSE run --rm claude-code doctor
+    container_rc=$?
+    echo
+    echo "=== Host-side checks (11, 15) ==="
+
+    # --- 11: file created in /workspace is owned by the host user ---------
+    marker=".doctor-owner-test-$$"
+    $COMPOSE run --rm --no-deps -T claude-code bash -c "touch /workspace/$marker" >/dev/null 2>&1
+    if [ -e "$PROJECTS_DIR/$marker" ]; then
+        owner_uid="$(stat -c '%u' "$PROJECTS_DIR/$marker")"
+        [ "$owner_uid" = "$(id -u)" ]
+        report 11 $? "workspace file owned by host user" "owner uid=$owner_uid, expected $(id -u)"
+        rm -f "$PROJECTS_DIR/$marker"
+    else
+        report 11 1 "workspace file owned by host user" "file not visible on host at $PROJECTS_DIR/$marker"
+    fi
+
+    # --- 15: empty secrets dir -> host-side auto-provisioning -------------
+    tmpd="$(mktemp -d)"
+    out="$(SIGNING_DIR="$tmpd/git-signing" NONINTERACTIVE=1 scripts/ensure-signing-key.sh 2>&1)"
+    ok=1
+    if [ -f "$tmpd/git-signing/signing_key" ] \
+        && [ -f "$tmpd/git-signing/allowed_signers" ] \
+        && [ -f "$tmpd/git-signing/key.meta" ] \
+        && printf '%s' "$out" | grep -q 'ssh-ed25519' \
+        && [ "$(jq -r .created_at "$tmpd/git-signing/key.meta")" != "null" ]; then
+        ok=0
+    fi
+    report 15 $ok "empty secrets/ triggers host-side key provisioning + pubkey display"
+    chmod -R u+w "$tmpd" && rm -rf "$tmpd"
+
+    echo
+    if [ "$container_rc" -eq 0 ] && [ "$FAIL" -eq 0 ]; then
+        printf "${GREEN}doctor: all host and container checks passed.${RESET}\n"
+        exit 0
+    fi
+    printf "${RED}doctor: FAILURES detected (container rc=%s, host fails=%s).${RESET}\n" "$container_rc" "$FAIL"
+    exit 1
+fi
+
+########################################################################
+# CONTAINER MODE
+########################################################################
+
+WORK="$(mktemp -d /tmp/doctor.XXXXXX)"
+trap 'rm -rf "$WORK"' EXIT
+
+# --- 1: not root ----------------------------------------------------------
+[ "$(id -u)" -ne 0 ]
+report 1 $? "container user is not root (uid=$(id -u))"
+
+# --- 2: no capabilities ---------------------------------------------------
+capeff="$(awk '/^CapEff:/ {print $2}' /proc/self/status)"
+[ "$capeff" = "0000000000000000" ]
+report 2 $? "effective capability set is empty" "CapEff=$capeff"
+
+# --- 3: rootfs read-only --------------------------------------------------
+! touch /etc/.doctor-rwtest 2>/dev/null
+report 3 $? "write to /etc fails (read-only rootfs)"
+
+# --- 4: no auth key material anywhere -------------------------------------
+found="$(find /home /root /etc /run -maxdepth 6 \
+    \( -name 'id_rsa*' -o -name 'id_ed25519*' -o -name 'id_ecdsa*' \
+       -o -name 'id_dsa*' -o -name '*.pem' \) -type f 2>/dev/null; \
+    find "$HOME/.ssh" -type f 2>/dev/null)"
+[ -z "$found" ]
+report 4 $? "no SSH auth keys / PEM files in the container" "$found"
+
+# --- 5: no docker socket --------------------------------------------------
+[ ! -e /var/run/docker.sock ]
+report 5 $? "/var/run/docker.sock is absent"
+
+# --- 6: non-allowlisted egress blocked ------------------------------------
+curl -sS -m 15 -o /dev/null https://example.com 2>"$WORK/curl6.err"
+[ $? -ne 0 ]
+report 6 $? "https://example.com is blocked by the egress proxy"
+
+# --- 7: api.anthropic.com reachable ---------------------------------------
+code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://api.anthropic.com/ 2>"$WORK/curl7.err")"
+[ -n "$code" ] && [ "$code" != "000" ]
+report 7 $? "https://api.anthropic.com is reachable via proxy" "http_code=$code $(cat "$WORK/curl7.err" 2>/dev/null | head -1)"
+
+# --- helper: throwaway repo ----------------------------------------------
+new_repo() {
+    local d="$1"
+    mkdir -p "$d" && cd "$d" || return 1
+    git init -q .
+    echo test > file.txt
+    git add file.txt
+}
+
+# --- 8: git network subcommands blocked -----------------------------------
+new_repo "$WORK/net-repo" >/dev/null 2>&1
+ok=0
+for sub in "push" "fetch" "pull"; do
+    out="$(git $sub 2>&1)"
+    rc=$?
+    if [ $rc -eq 0 ] || ! printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; then
+        ok=1
+    fi
+done
+out="$(cd /tmp && git clone https://example.com/x.git 2>&1)"
+{ [ $? -ne 0 ] && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; } || ok=1
+report 8 $ok "git push/fetch/pull/clone blocked with host instructions"
+
+# --- 9: Co-Authored-By commit rejected ------------------------------------
+cd "$WORK/net-repo"
+git commit -q -m "$(printf 'chore: doctor test\n\nCo-Authored-By: Claude <noreply@anthropic.com>')" 2>"$WORK/hook9.err"
+[ $? -ne 0 ]
+report 9 $? "commit with Co-Authored-By trailer rejected by commit-msg hook"
+
+# --- 10: regular commit succeeds with a valid signature -------------------
+git commit -q -m "test: doctor signing verification" 2>"$WORK/hook10.err"
+rc=$?
+sig="$(git log -1 --show-signature 2>&1)"
+{ [ $rc -eq 0 ] && printf '%s' "$sig" | grep -q 'Good "git" signature'; }
+report 10 $? "regular commit succeeds and signature verifies" "$(printf '%s' "$sig" | head -3 | tr '\n' ' ')"
+
+# --- 12: writes outside /workspace, /tmp, ~/.claude fail ------------------
+ok=0
+for p in /usr/.rwtest /opt/.rwtest /home/dev/.rwtest /var/.rwtest; do
+    if touch "$p" 2>/dev/null; then rm -f "$p"; ok=1; fi
+done
+# and the allowed ones must work:
+for p in /workspace/.doctor-rwtest /tmp/.doctor-rwtest "$HOME/.claude/.doctor-rwtest"; do
+    if ! touch "$p" 2>/dev/null; then ok=1; else rm -f "$p"; fi
+done
+report 12 $ok "only /workspace, /tmp and ~/.claude are writable"
+
+# --- 13: signing mount read-only ------------------------------------------
+! touch /run/secrets/git-signing/.doctor-rwtest 2>/dev/null
+report 13 $? "/run/secrets/git-signing/ is read-only"
+
+# --- 14: signing key not under /workspace ---------------------------------
+real="$(realpath /run/secrets/git-signing 2>/dev/null || echo /run/secrets/git-signing)"
+cfg="$(git config --global user.signingkey)"
+{ [ "${real#/workspace}" = "$real" ] && [ "${cfg#/workspace}" = "$cfg" ]; }
+report 14 $? "signing key lives outside /workspace" "mount=$real key=$cfg"
+
+# --- 16/17: key-age fixtures ----------------------------------------------
+make-fixtures "$WORK/fixtures"
+
+# 16: 31 days -> warn block, commit proceeds
+out="$(KEY_META_PATH="$WORK/fixtures/warn/key.meta" KEY_AGE_MARKER="$WORK/marker16" \
+    bash /opt/git-hooks/pre-commit 2>&1)"
+rc=$?
+{ [ $rc -eq 0 ] && printf '%s' "$out" | grep -q 'ROTATION DUE'; }
+report 16 $? "31-day-old key: warning shown, commit allowed"
+
+# 17: 46 days -> pre-commit aborts with rotation instructions
+out="$(KEY_META_PATH="$WORK/fixtures/expired/key.meta" KEY_AGE_MARKER="$WORK/marker17" \
+    bash /opt/git-hooks/pre-commit 2>&1)"
+rc=$?
+{ [ $rc -ne 0 ] && printf '%s' "$out" | grep -q 'rotate-signing-key'; }
+report 17 $? "46-day-old key: pre-commit aborts with rotation instructions"
+
+# --- 18: rotated key — old AND new signatures verify ----------------------
+rot="$WORK/rotation"
+mkdir -p "$rot"
+ssh-keygen -q -t ed25519 -N "" -C old -f "$rot/old_key"
+ssh-keygen -q -t ed25519 -N "" -C new -f "$rot/new_key"
+t_start="$(date -u -d '90 days ago' +%Y%m%d%H%M%SZ)"
+t_rot="$(date -u -d '10 days ago' +%Y%m%d%H%M%SZ)"
+{
+    printf 'doctor@test valid-after="%s",valid-before="%s" %s old\n' \
+        "$t_start" "$t_rot" "$(cut -d' ' -f1-2 "$rot/old_key.pub")"
+    printf 'doctor@test valid-after="%s" %s new\n' \
+        "$t_rot" "$(cut -d' ' -f1-2 "$rot/new_key.pub")"
+} > "$rot/allowed_signers"
+
+new_repo "$rot/repo" >/dev/null 2>&1
+git_rot() {
+    git -c user.email=doctor@test -c user.name=doctor \
+        -c gpg.ssh.allowedSignersFile="$rot/allowed_signers" "$@"
+}
+old_date="$(date -u -d '20 days ago' -Is)"
+GIT_AUTHOR_DATE="$old_date" GIT_COMMITTER_DATE="$old_date" \
+    git_rot -c user.signingkey="$rot/old_key" commit -q -m "test: commit signed with old key" 2>"$WORK/rot1.err"
+rc1=$?
+echo more >> file.txt && git add file.txt
+git_rot -c user.signingkey="$rot/new_key" commit -q -m "test: commit signed with new key" 2>"$WORK/rot2.err"
+rc2=$?
+good_count="$(git_rot log --show-signature 2>&1 | grep -c 'Good "git" signature')"
+{ [ $rc1 -eq 0 ] && [ $rc2 -eq 0 ] && [ "$good_count" -eq 2 ]; }
+report 18 $? "after rotation, old AND new commit signatures verify" "good signatures: $good_count/2 $(cat "$WORK/rot1.err" "$WORK/rot2.err" 2>/dev/null | head -1)"
+
+cd /
+summary

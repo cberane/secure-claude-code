@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# pre-commit hook for THIS setup repository (host-side) — blocks accidental
+# commits of secrets. Pattern-based, no external tools required.
+# Install with: make install-hooks
+set -u
+
+fail=0
+
+# --- 1. forbidden paths ---------------------------------------------------
+while IFS= read -r f; do
+    case "$f" in
+        .env|.env.*)
+            [ "$f" = ".env.example" ] && continue
+            echo "BLOCKED: '$f' must never be committed." >&2; fail=1 ;;
+        secrets/*)
+            [ "$f" = "secrets/.gitkeep" ] && continue
+            echo "BLOCKED: '$f' is under secrets/." >&2; fail=1 ;;
+        *.key|*.pem|id_rsa*|id_ed25519*|id_ecdsa*|id_dsa*)
+            echo "BLOCKED: '$f' looks like key material." >&2; fail=1 ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# --- 2. secret patterns in staged content ---------------------------------
+patterns='-----BEGIN (OPENSSH|RSA|EC|DSA|PGP) PRIVATE KEY|sk-ant-[a-zA-Z0-9_-]{20}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{22}|glpat-[A-Za-z0-9_-]{20}|xox[baprs]-[A-Za-z0-9-]{10}'
+
+while IFS= read -r f; do
+    if git show ":$f" 2>/dev/null | grep -qE -- "$patterns"; then
+        echo "BLOCKED: '$f' contains something that looks like a secret." >&2
+        fail=1
+    fi
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "$fail" -ne 0 ]; then
+    cat >&2 <<'EOF'
+
+┌─ COMMIT BLOCKED — POTENTIAL SECRET ───────────────────
+│ Remove the file/content from the index and try again:
+│   git restore --staged <file>
+│ If this is a false positive, commit with --no-verify
+│ (and be sure you know what you are doing).
+└───────────────────────────────────────────────────────
+EOF
+    exit 1
+fi
+
+exit 0

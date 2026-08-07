@@ -1,0 +1,35 @@
+# Egress allowlist — squid dstdomain format.
+#   example.com   matches exactly example.com
+#   .example.com  matches example.com AND all subdomains
+#
+# Keep this list MINIMAL. Every entry is a potential exfiltration channel.
+# In particular: git remote hosts (github.com, gitlab.com, ...) must NEVER
+# be added here — pushing is a host-only operation by design, and this list
+# is the second line of defense after the git wrapper.
+#
+# WARNING: widening this list also weakens the reasoning that makes the
+# read-only signing-key mount acceptable (see README.md, "Signing key
+# exfiltration trade-off").
+
+# Anthropic — API and OAuth login
+api.anthropic.com
+console.anthropic.com
+claude.ai
+# Telemetry/feature flags used by Claude Code (harmless to remove, but the
+# CLI logs connection errors without them):
+statsig.anthropic.com
+statsig.com
+.sentry.io
+
+# npm registry (the wildcard covers registry.npmjs.org — squid rejects
+# listing a domain AND its parent wildcard as a fatal config error)
+.npmjs.org
+
+# --- Optional: uncomment what your stack needs -------------------------
+# PHP / composer
+#packagist.org
+#repo.packagist.org
+#getcomposer.org
+# Python
+#pypi.org
+#files.pythonhosted.org

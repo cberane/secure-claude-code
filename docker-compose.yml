@@ -1,0 +1,87 @@
+# Hardened Claude Code sandbox.
+#
+# Two services, two networks:
+#   claude-code  — only on the internal network; NO direct internet access.
+#   egress-proxy — the single way out; enforces the domain allowlist.
+#
+# The internal network is `internal: true`, so the claude-code container cannot
+# reach the host LAN or the internet directly — every connection must go
+# through the proxy, which only permits allowlisted domains on port 443/80.
+
+name: claude-sandbox
+
+services:
+  claude-code:
+    build:
+      context: .
+      target: ${BUILD_TARGET:-runtime}
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HTTP_PROXY: http://egress-proxy:3128
+      HTTPS_PROXY: http://egress-proxy:3128
+      http_proxy: http://egress-proxy:3128
+      https_proxy: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1
+      no_proxy: localhost,127.0.0.1
+    networks:
+      - sandbox
+    depends_on:
+      - egress-proxy
+    # --- runtime hardening -------------------------------------------------
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=${TMP_SIZE:-512m},uid=${UID:-1000},gid=${GID:-1000}
+    pids_limit: ${PIDS_LIMIT:-512}
+    mem_limit: ${MEM_LIMIT:-4g}
+    cpus: ${CPUS:-2}
+    ulimits:
+      nofile:
+        soft: ${NOFILE:-4096}
+        hard: ${NOFILE:-4096}
+    # --- mounts: exactly ONE writable bind mount ---------------------------
+    volumes:
+      - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
+      - claude-config:/home/dev/.claude
+      - ./secrets/git-signing/:/run/secrets/git-signing/:ro
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+
+  egress-proxy:
+    build:
+      context: ./egress
+    networks:
+      - sandbox
+      - egress
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /var/log/squid:rw,nosuid,size=16m,uid=13,gid=13
+      - /var/spool/squid:rw,nosuid,size=16m,uid=13,gid=13
+    pids_limit: 128
+    mem_limit: 256m
+    user: proxy
+
+networks:
+  # internal: true — no gateway to the outside world or the host LAN.
+  sandbox:
+    internal: true
+  # Only the proxy sits on a network with external connectivity.
+  egress: {}
+
+volumes:
+  # Persistent Claude Code session/config state (OAuth token lives here).
+  claude-config:
