@@ -18,7 +18,7 @@ endif
         rotate-signing-key install-hooks clean distclean
 
 help: ## Show this help
-	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
+	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
 
 build: ## Build the sandbox images
 	$(COMPOSE) build
