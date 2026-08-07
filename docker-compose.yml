@@ -76,6 +76,11 @@ services:
     pids_limit: 128
     mem_limit: 256m
     user: proxy
+    # No IPv6 in the proxy netns: squid then resolves A records only.
+    # With v6 enabled but unrouted (default docker bridge, WSL2), squid picks
+    # AAAA addresses and fails CONNECTs with an instant 503.
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 1
 
 networks:
   # internal: true — no gateway to the outside world or the host LAN.
