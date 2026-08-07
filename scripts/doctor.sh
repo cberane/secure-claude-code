@@ -93,10 +93,20 @@ if [ "${1:-}" = "--host" ]; then
 
     # Informational, never affects the check results: old images left behind
     # by rebuilds (e.g. after the update-image skill) linger as dangling.
-    dangling="$($ENGINE images -q -f dangling=true 2>/dev/null | wc -l)"
-    if [ "$dangling" -gt 0 ]; then
+    # Count only images prune can actually reclaim — dangling images still
+    # referenced by a container (e.g. a long-running sandbox session on a
+    # superseded image) are kept by prune and would nag forever.
+    used="$($ENGINE ps -aq 2>/dev/null | xargs -r "$ENGINE" container inspect --format '{{.Image}}' 2>/dev/null)"
+    reclaimable=0
+    for id in $($ENGINE images -q -f dangling=true 2>/dev/null); do
+        case "$used" in
+            *"$id"*) ;;
+            *) reclaimable=$((reclaimable + 1)) ;;
+        esac
+    done
+    if [ "$reclaimable" -gt 0 ]; then
         echo
-        echo "note: $dangling dangling image(s) from previous builds — run 'make prune' to reclaim disk space."
+        echo "note: $reclaimable dangling image(s) from previous builds — run 'make prune' to reclaim disk space."
     fi
 
     echo
