@@ -16,7 +16,8 @@ egress/allowlist.txt
 # Local, per-machine compose tweaks (see docker-compose.override.example.yml)
 docker-compose.override.yml
 
-# Local state
-.claude/
+# Local state — but project skills are shared and tracked
+.claude/*
+!.claude/skills/
 *.log
 tmp/
