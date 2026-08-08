@@ -75,9 +75,12 @@ services:
         # proxy bakes in (egress/allowlist.d/).
         TOOLCHAINS: ${TOOLCHAINS:-}
     networks:
-      - sandbox
-      - egress
-      - dind-net
+      sandbox:
+      egress:
+      dind-net:
+        # Static: nested containers inside dind reach the proxy by IP
+        # (they cannot resolve the "egress-proxy" name).
+        ipv4_address: 172.30.0.3
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -112,8 +115,9 @@ services:
     environment:
       DOCKER_TLS_CERTDIR: ""
       # Registry pulls done by the daemon go through the egress allowlist.
-      HTTP_PROXY: http://egress-proxy:3128
-      HTTPS_PROXY: http://egress-proxy:3128
+      # By IP: keeps daemon and nested containers on one proxy address.
+      HTTP_PROXY: http://172.30.0.3:3128
+      HTTPS_PROXY: http://172.30.0.3:3128
       NO_PROXY: localhost,127.0.0.1
     networks:
       - dind-net
@@ -162,9 +166,15 @@ networks:
   egress: {}
   # Isolated net for the dind daemon: members are dind-daemon, dind-guard
   # and egress-proxy — never claude-code, so the unfiltered API stays out
-  # of the sandbox's reach.
+  # of the sandbox's reach. Fixed subnet: containers NESTED inside dind
+  # (Sail builds/services) have no DNS for outer compose names, so they
+  # reach the egress proxy by its static IP (172.30.0.3, also baked into
+  # the sandbox image's docker client config).
   dind-net:
     internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
 
 volumes:
   # Persistent Claude Code session/config state (OAuth token lives here).

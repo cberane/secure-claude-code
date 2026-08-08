@@ -18,6 +18,25 @@ services: {}
 #   claude-code:
 #     # Language toolchains belong in .env (TOOLCHAINS=php,python), not
 #     # here — the proxy allowlist and doctor follow that variable.
+#
+#   # Host ingress: reach a sandbox dev server at http://localhost:8080.
+#   # Inbound-only (no outbound path for the sandbox); target logic in
+#   # ingress/haproxy.cfg (interactive session first, Sail app as backup).
+#   ingress:
+#     image: haproxy:3.2-alpine@sha256:79799e8b2977e60802774fa53d29e6b54e045402cdd8a8b9fe43923e7095a047
+#     ports:
+#       - "127.0.0.1:8080:8080"
+#     networks: [sandbox, ingress]
+#     read_only: true
+#     security_opt: [no-new-privileges:true]
+#     cap_drop: [ALL]
+#     pids_limit: 64
+#     mem_limit: 64m
+#     volumes:
+#       - ./ingress/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+#
+# networks:
+#   ingress: {}
 #     # More memory for a heavy project:
 #     mem_limit: 8g
 #     # Opt-in custom seccomp profile (read security/seccomp.json first!):

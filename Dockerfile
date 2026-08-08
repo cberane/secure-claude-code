@@ -136,6 +136,11 @@ ARG DOCKER_CLI_VERSION=29.7.2
 ARG DOCKER_CLI_SHA256=803d433f226db4776e1768fd319fc6c6e4935a456acf84fcc0080818b854bc8f
 ARG COMPOSE_PLUGIN_VERSION=v5.4.0
 ARG COMPOSE_PLUGIN_SHA256=837fd1d35bf6a494f41b5b5988269a7be79de337cf1a1a6ff0e45ab51bb4e9be
+# Egress proxy's static IP on dind-net (docker-compose.yml) — by IP because
+# containers nested inside dind cannot resolve outer compose names. The
+# proxies config is injected by the docker client into nested builds and
+# runs, so apt/composer/npm inside them obey the allowlist without DNS.
+ARG EGRESS_PROXY_DIND_IP=172.30.0.3
 
 RUN case ",${TOOLCHAINS}," in \
     *,docker,*) \
@@ -153,8 +158,8 @@ RUN case ",${TOOLCHAINS}," in \
         && mkdir -p /etc/docker-client \
         && printf '%s\n' \
             '{"proxies":{"default":{' \
-            '  "httpProxy":"http://egress-proxy:3128",' \
-            '  "httpsProxy":"http://egress-proxy:3128",' \
+            "  \"httpProxy\":\"http://${EGRESS_PROXY_DIND_IP}:3128\"," \
+            "  \"httpsProxy\":\"http://${EGRESS_PROXY_DIND_IP}:3128\"," \
             '  "noProxy":"localhost,127.0.0.1,dind"}}}' \
             > /etc/docker-client/config.json \
         ;; \

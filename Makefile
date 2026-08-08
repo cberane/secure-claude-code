@@ -56,15 +56,15 @@ restart: down up ## Restart (required after key rotation)
 
 shell: keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
 	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm claude-code bash
+	$(COMPOSE) run --rm --name claude-session claude-code bash
 
 claude: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
 	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm claude-code claude
+	$(COMPOSE) run --rm --name claude-session claude-code claude
 
 yolo: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm claude-code claude --dangerously-skip-permissions
+	$(COMPOSE) run --rm --name claude-session claude-code claude --dangerously-skip-permissions
 
 keygen: ## Ensure the signing key exists (idempotent, host-side)
 	@scripts/ensure-signing-key.sh

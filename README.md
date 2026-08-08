@@ -209,6 +209,16 @@ Differences from Docker:
     the `dind` hostname (e.g. `curl dind:8080`); nested image builds
     needing further domains (Ubuntu archives, PPAs) will surface them
     via `blocked-domains`.
+  - **Nested networking:** containers inside dind have no DNS for outer
+    compose names — they reach the egress proxy via its static dind-net
+    IP (172.30.0.3), which the sandbox's docker client injects into
+    nested builds and runs automatically. Sail's app-image build works
+    through this without any resolver.
+  - **Host browser access:** enable the ingress override
+    (`docker-compose.override.example.yml`) to reach a sandbox dev
+    server at `http://localhost:8080` — inbound-only; it forwards to the
+    interactive session (`claude-session:8080`) or, as backup, to an app
+    published inside dind (`dind:8080`).
   - **Image pull control:** the sandbox talks to dind only through a
     filtering guard (`dind-guard`) — pulls are limited to images matching
     `dind/images-allowlist.txt` (local, from the tracked template;
