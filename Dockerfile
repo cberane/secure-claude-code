@@ -140,20 +140,12 @@ RUN curl -fsSLo /usr/local/bin/composer \
 USER dev
 
 ########################################################################
-# dev-python — optional target: Python toolchain
+# dev-python — optional target: Python development
 ########################################################################
+# python3/pip/venv are already part of the runtime base tooling; this
+# target exists as the switch that enables the PyPI egress domains
+# (egress/allowlist.d/python.txt) and the doctor function check.
+# Virtualenvs belong in /workspace: /tmp is noexec, so native wheel
+# builds executing from $TMPDIR fail (same accepted friction as npm,
+# see DECISIONS.md).
 FROM runtime AS dev-python
-
-USER root
-
-# Debian-packaged interpreter and tooling — nothing fetched from PyPI at
-# build time, so there is no version pin to maintain here. Virtualenvs
-# belong in /workspace: /tmp is noexec, so native wheel builds executing
-# from $TMPDIR fail (same accepted friction as npm, see DECISIONS.md).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        python3 \
-        python3-pip \
-        python3-venv \
-    && rm -rf /var/lib/apt/lists/*
-
-USER dev

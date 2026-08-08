@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# doctor.sh — hardening self-test. Covers the 19 acceptance criteria.
+# doctor.sh — hardening self-test. Covers the 19 acceptance criteria, plus
+# per-dev-target function checks (20/21) when a toolchain target is built.
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
 #                                Runs host-side checks 11 and 15, and executes
@@ -59,7 +60,7 @@ if [ "${1:-}" = "--host" ]; then
     fi
     PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1)"
 
-    echo "=== Container-side checks (1-10, 12-14, 16-19) ==="
+    echo "=== Container-side checks (1-10, 12-14, 16-19, + enabled dev targets) ==="
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
@@ -156,7 +157,15 @@ curl -sS -m 15 -o /dev/null https://example.com 2>"$WORK/curl6.err"
 report 6 $? "https://example.com is blocked by the egress proxy"
 
 # --- 7: api.anthropic.com reachable ---------------------------------------
-code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://api.anthropic.com/ 2>"$WORK/curl7.err")"
+# Up to 3 attempts: under load, WSL2/NAT can time out individual upstream
+# connects (proxy 503 after connect_timeout) while parallel tunnels to the
+# same host succeed. One flaky CONNECT must not fail the suite; persistent
+# unreachability still does.
+code="000"
+for _ in 1 2 3; do
+    code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://api.anthropic.com/ 2>"$WORK/curl7.err")"
+    [ -n "$code" ] && [ "$code" != "000" ] && break
+done
 [ -n "$code" ] && [ "$code" != "000" ]
 report 7 $? "https://api.anthropic.com is reachable via proxy" "http_code=$code $(cat "$WORK/curl7.err" 2>/dev/null | head -1)"
 
@@ -271,6 +280,26 @@ out="$(blocked-domains 2>&1)"
 { printf '%s' "$out" | grep -q 'example\.com' \
     && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; }
 report 19 $? "blocked-domains lists proxy-denied domains with host instructions"
+
+# --- 20/21: dev-target function tests -------------------------------------
+# Keyed on SANDBOX_TARGET (set by compose from BUILD_TARGET) — the same
+# variable that selected the image stage AND the proxy's allowlist
+# fragment, so toolchain and its registry must both work. Binary sniffing
+# would misfire: python3/pip ship in the runtime base tooling too.
+case "${SANDBOX_TARGET:-runtime}" in
+dev-php)
+    ver="$(COMPOSER_HOME=/tmp/doctor-composer composer --version 2>/dev/null)"
+    code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://repo.packagist.org/packages.json 2>"$WORK/curl20.err")"
+    { [ -n "$ver" ] && [ "$code" = "200" ]; }
+    report 20 $? "dev-php: composer runs and packagist is reachable" "http_code=$code $(head -1 "$WORK/curl20.err" 2>/dev/null)"
+    ;;
+dev-python)
+    ver="$(python3 --version 2>/dev/null)"
+    code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' -I https://pypi.org/simple/pip/ 2>"$WORK/curl21.err")"
+    { [ -n "$ver" ] && [ "$code" = "200" ]; }
+    report 21 $? "dev-python: python runs and PyPI is reachable" "http_code=$code $(head -1 "$WORK/curl21.err" 2>/dev/null)"
+    ;;
+esac
 
 cd /
 summary

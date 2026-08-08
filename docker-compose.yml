@@ -22,6 +22,8 @@ services:
       - path: .env
         required: false
     environment:
+      # Lets doctor run the function checks matching the built target.
+      SANDBOX_TARGET: ${BUILD_TARGET:-runtime}
       HTTP_PROXY: http://egress-proxy:3128
       HTTPS_PROXY: http://egress-proxy:3128
       http_proxy: http://egress-proxy:3128
@@ -62,6 +64,10 @@ services:
   egress-proxy:
     build:
       context: ./egress
+      args:
+        # The sandbox build target drives which allowlist fragments the
+        # proxy bakes in (egress/allowlist.d/).
+        SANDBOX_TARGET: ${BUILD_TARGET:-runtime}
     networks:
       - sandbox
       - egress

@@ -9,8 +9,23 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY squid.conf /etc/squid/squid.conf
-COPY allowlist.txt /etc/squid/allowlist.txt
+COPY allowlist.txt /etc/squid/allowlist-base.txt
+COPY allowlist.d/ /etc/squid/allowlist.d/
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+# Merge the machine-local base allowlist with the fragment matching the
+# sandbox build target, so enabling/disabling dev-php/dev-python in .env
+# automatically enables/disables the toolchain's domains. Comments and
+# blank lines are stripped, duplicates deduplicated (squid warns on exact
+# duplicates; domain-plus-parent-wildcard remains a fatal config error).
+ARG SANDBOX_TARGET=runtime
+RUN { cat /etc/squid/allowlist-base.txt; \
+      case "$SANDBOX_TARGET" in \
+        dev-php)    cat /etc/squid/allowlist.d/php.txt ;; \
+        dev-python) cat /etc/squid/allowlist.d/python.txt ;; \
+      esac; } \
+    | grep -v '^[[:space:]]*#' | sed '/^[[:space:]]*$/d' | sort -u \
+    > /etc/squid/allowlist.txt
 
 EXPOSE 3128
 

@@ -66,7 +66,7 @@ key — then confirm the prompt. Authenticate Claude Code either via
 Verify the hardening any time:
 
 ```sh
-make doctor               # 19 red/green acceptance checks
+make doctor               # 19 red/green acceptance checks (+ dev-target checks)
 ```
 
 ## Daily workflow
@@ -190,13 +190,18 @@ Differences from Docker:
 
 ## Optional extras
 
-- **PHP toolchain:** set `BUILD_TARGET=dev-php` in `.env` and `make build`
-  (adds `php-cli` + pinned, checksum-verified composer). Uncomment the
-  packagist entries in `egress/allowlist.txt`.
-- **Python toolchain:** set `BUILD_TARGET=dev-python` in `.env` and
-  `make build` (adds Debian-packaged `python3`, `pip`, `venv`). Uncomment
-  the Python entries in `egress/allowlist.txt`. Create virtualenvs inside
+- **PHP toolchain:** set `BUILD_TARGET=dev-php` in `.env`, then
+  `make build && make restart` (adds `php-cli` + pinned, checksum-verified
+  composer). The proxy automatically enables the composer domains
+  (`egress/allowlist.d/php.txt`) for this target — and drops them again
+  when the target is switched away.
+- **Python development:** `python3`/`pip`/`venv` are already in the base
+  image; set `BUILD_TARGET=dev-python` in `.env`, then
+  `make build && make restart` to enable the PyPI domains
+  (`egress/allowlist.d/python.txt`). Create virtualenvs inside
   `/workspace` — `/tmp` is `noexec`, so native wheel builds fail there.
+- Either target adds a doctor function check (20/21) asserting the
+  toolchain runs and its registry is reachable through the proxy.
 - **Custom seccomp:** `security/seccomp.json` documents the syscalls that
   matter; read its `_comment` before enabling — the runtime default profile
   is the better choice unless you have a concrete reason.

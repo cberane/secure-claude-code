@@ -76,6 +76,14 @@ asking questions (auto mode).
   live allowlist diverges per machine/developer; make copies the template
   once (file target, never overwritten afterwards) so local additions don't
   create git noise. Same pattern as `.env` / `.env.example`.
+- **Dev-target domains are appended at proxy build time, not hand-edited.**
+  `BUILD_TARGET` is passed to the egress build as `SANDBOX_TARGET`; the
+  matching tracked fragment (`egress/allowlist.d/php.txt` / `python.txt`)
+  is merged (deduplicated) with the local base list. Switching the target
+  in `.env` therefore enables AND disables the toolchain's domains on the
+  next build — no stale registry access lingers after a target is dropped.
+  Doctor checks 20/21 assert the toolchain + its registry work whenever
+  the corresponding binaries exist in the image.
 - **Local compose override via `docker-compose.override.yml`** (gitignored,
   tracked example file): the native compose idiom for per-machine tweaks.
   Docker auto-loads the name; the podman path appends it to its explicit

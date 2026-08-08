@@ -92,7 +92,7 @@ additionally verify every OTHER optional stage still builds:
 Both must succeed:
 
 ```sh
-make doctor    # all 19 checks green, exit code 0
+make doctor    # ALL checks green, exit code 0 (19 core + any dev-target checks)
 ```
 
 ```sh

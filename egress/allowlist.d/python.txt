@@ -1,0 +1,3 @@
+# Domains appended automatically when BUILD_TARGET=dev-python.
+pypi.org
+files.pythonhosted.org
