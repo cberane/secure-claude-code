@@ -38,6 +38,14 @@ statsig.com
 #packagist.org
 #repo.packagist.org
 #getcomposer.org
+# composer package archives are mostly served from GitHub's READ endpoints.
+# These two do not speak the git smart-HTTP protocol, so clone/push stay
+# unreachable — do NOT add github.com itself (see warning above). Note that
+# api.github.com accepts authenticated writes (gists): only an issue if a
+# valid token is smuggled into the sandbox, but keep it commented unless
+# composer is actually in use.
+#api.github.com
+#codeload.github.com
 # Python
 #pypi.org
 #files.pythonhosted.org
