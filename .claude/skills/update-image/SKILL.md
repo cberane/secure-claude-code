@@ -82,9 +82,10 @@ nothing else in either file.
 make build
 ```
 
-If the user's `.env` sets `BUILD_TARGET=dev-php`, this already covers the
-composer stage; otherwise additionally verify the optional stage builds:
-`docker build --target dev-php .` (respect `ENGINE`).
+`make build` covers the stage selected by `BUILD_TARGET` in `.env`;
+additionally verify every OTHER optional stage still builds:
+`docker build --target dev-php .` and `docker build --target dev-python .`
+(respect `ENGINE`, skip the one already built).
 
 ## Step 6 — End-to-end verification
 

@@ -39,7 +39,7 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
 ## Dependencies: use original packages, never rewrite them
 
 - ALWAYS prefer loading code from the real registries (npm, packagist,
-  release archives) over hand-writing it. When a package is requested or
+  PyPI, release archives) over hand-writing it. When a package is requested or
   needed, install the original via the package manager — never re-create
   a library, or parts of one, from model memory.
 - If a package download is blocked by the egress proxy, that is NOT a

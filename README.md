@@ -193,6 +193,10 @@ Differences from Docker:
 - **PHP toolchain:** set `BUILD_TARGET=dev-php` in `.env` and `make build`
   (adds `php-cli` + pinned, checksum-verified composer). Uncomment the
   packagist entries in `egress/allowlist.txt`.
+- **Python toolchain:** set `BUILD_TARGET=dev-python` in `.env` and
+  `make build` (adds Debian-packaged `python3`, `pip`, `venv`). Uncomment
+  the Python entries in `egress/allowlist.txt`. Create virtualenvs inside
+  `/workspace` — `/tmp` is `noexec`, so native wheel builds fail there.
 - **Custom seccomp:** `security/seccomp.json` documents the syscalls that
   matter; read its `_comment` before enabling — the runtime default profile
   is the better choice unless you have a concrete reason.
