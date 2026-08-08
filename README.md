@@ -190,18 +190,17 @@ Differences from Docker:
 
 ## Optional extras
 
-- **PHP toolchain:** set `BUILD_TARGET=dev-php` in `.env`, then
-  `make build && make restart` (adds `php-cli` + pinned, checksum-verified
-  composer). The proxy automatically enables the composer domains
-  (`egress/allowlist.d/php.txt`) for this target — and drops them again
-  when the target is switched away.
-- **Python development:** `python3`/`pip`/`venv` are already in the base
-  image; set `BUILD_TARGET=dev-python` in `.env`, then
-  `make build && make restart` to enable the PyPI domains
-  (`egress/allowlist.d/python.txt`). Create virtualenvs inside
-  `/workspace` — `/tmp` is `noexec`, so native wheel builds fail there.
-- Either target adds a doctor function check (20/21) asserting the
-  toolchain runs and its registry is reachable through the proxy.
+- **Language toolchains:** set `TOOLCHAINS` in `.env` as a comma list —
+  `TOOLCHAINS=php`, `TOOLCHAINS=python`, or `TOOLCHAINS=php,python` — then
+  `make build && make restart`.
+  - `php` adds `php-cli` + a pinned, checksum-verified composer.
+  - `python` installs nothing extra (`python3`/`pip`/`venv` are base
+    tooling); the entry switches on PyPI access. Create virtualenvs inside
+    `/workspace` — `/tmp` is `noexec`, so native wheel builds fail there.
+  - Each enabled toolchain automatically enables its registry domains at
+    the proxy (`egress/allowlist.d/<toolchain>.txt`) — and drops them
+    again when removed from the list — plus a doctor function check
+    (20/21) asserting the toolchain runs and its registry is reachable.
 - **Custom seccomp:** `security/seccomp.json` documents the syscalls that
   matter; read its `_comment` before enabling — the runtime default profile
   is the better choice unless you have a concrete reason.

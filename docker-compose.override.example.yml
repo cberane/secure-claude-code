@@ -16,9 +16,8 @@ services: {}
 #
 # services:
 #   claude-code:
-#     # PHP toolchain on this machine only:
-#     build:
-#       target: dev-php
+#     # Language toolchains belong in .env (TOOLCHAINS=php,python), not
+#     # here — the proxy allowlist and doctor follow that variable.
 #     # More memory for a heavy project:
 #     mem_limit: 8g
 #     # Opt-in custom seccomp profile (read security/seccomp.json first!):

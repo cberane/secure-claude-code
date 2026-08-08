@@ -6,8 +6,11 @@
 # Stages:
 #   builder  — installs Claude Code into an isolated npm prefix (npm cache never
 #              reaches the runtime image)
-#   runtime  — default target: slim toolchain + Claude Code, non-root user
-#   dev-php  — optional target (--target dev-php): adds php-cli + composer
+#   runtime  — final target: slim toolchain + Claude Code, non-root user.
+#              The TOOLCHAINS build arg (comma list, e.g. "php,python")
+#              conditionally adds language toolchains; python needs no
+#              install (python3/pip/venv are base tooling) but is still a
+#              valid entry — it switches the PyPI egress domains on.
 
 ARG NODE_IMAGE=node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
 
@@ -88,6 +91,39 @@ COPY --chmod=0755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 # entrypoint so they apply to every mounted project.
 COPY sandbox/CLAUDE.md /etc/claude/CLAUDE.md
 
+# --- Optional language toolchains (TOOLCHAINS="php,python", see .env) ----
+# php: php-cli + extensions and a version-pinned, checksum-verified
+#      composer (no installer script).
+# python: nothing to install — python3/pip/venv are base tooling above;
+#      the entry only drives the egress allowlist and doctor check.
+#      Virtualenvs belong in /workspace: /tmp is noexec, so native wheel
+#      builds executing from $TMPDIR fail (accepted friction, DECISIONS.md).
+ARG TOOLCHAINS=""
+ARG COMPOSER_VERSION=2.10.2
+ARG COMPOSER_SHA256=5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027
+
+RUN case ",${TOOLCHAINS}," in \
+    *,php,*) \
+        apt-get update && apt-get install -y --no-install-recommends \
+            php-cli \
+            php-bcmath \
+            php-curl \
+            php-gd \
+            php-intl \
+            php-mbstring \
+            php-mysql \
+            php-sqlite3 \
+            php-xml \
+            php-zip \
+            unzip \
+        && rm -rf /var/lib/apt/lists/* \
+        && curl -fsSLo /usr/local/bin/composer \
+            "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar" \
+        && echo "${COMPOSER_SHA256}  /usr/local/bin/composer" | sha256sum -c - \
+        && chmod 0755 /usr/local/bin/composer \
+        ;; \
+    esac
+
 ENV PATH=/home/dev/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     # All Claude Code state lives in the persistent named volume.
     CLAUDE_CONFIG_DIR=/home/dev/.claude \
@@ -107,45 +143,3 @@ USER dev
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]
 CMD ["claude"]
 
-########################################################################
-# dev-php — optional target: PHP toolchain + composer
-########################################################################
-FROM runtime AS dev-php
-
-USER root
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        php-cli \
-        php-bcmath \
-        php-curl \
-        php-gd \
-        php-intl \
-        php-mbstring \
-        php-mysql \
-        php-sqlite3 \
-        php-xml \
-        php-zip \
-        unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Composer: version-pinned download, checksum-verified. No installer script.
-ARG COMPOSER_VERSION=2.10.2
-ARG COMPOSER_SHA256=5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027
-
-RUN curl -fsSLo /usr/local/bin/composer \
-        "https://getcomposer.org/download/${COMPOSER_VERSION}/composer.phar" \
-    && echo "${COMPOSER_SHA256}  /usr/local/bin/composer" | sha256sum -c - \
-    && chmod 0755 /usr/local/bin/composer
-
-USER dev
-
-########################################################################
-# dev-python — optional target: Python development
-########################################################################
-# python3/pip/venv are already part of the runtime base tooling; this
-# target exists as the switch that enables the PyPI egress domains
-# (egress/allowlist.d/python.txt) and the doctor function check.
-# Virtualenvs belong in /workspace: /tmp is noexec, so native wheel
-# builds executing from $TMPDIR fail (same accepted friction as npm,
-# see DECISIONS.md).
-FROM runtime AS dev-python

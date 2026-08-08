@@ -281,23 +281,23 @@ out="$(blocked-domains 2>&1)"
     && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; }
 report 19 $? "blocked-domains lists proxy-denied domains with host instructions"
 
-# --- 20/21: dev-target function tests -------------------------------------
-# Keyed on SANDBOX_TARGET (set by compose from BUILD_TARGET) — the same
-# variable that selected the image stage AND the proxy's allowlist
-# fragment, so toolchain and its registry must both work. Binary sniffing
-# would misfire: python3/pip ship in the runtime base tooling too.
-case "${SANDBOX_TARGET:-runtime}" in
-dev-php)
+# --- 20/21: toolchain function tests --------------------------------------
+# Keyed on SANDBOX_TOOLCHAINS (set by compose from TOOLCHAINS) — the same
+# variable that selected the image toolchains AND the proxy's allowlist
+# fragments, so each enabled toolchain and its registry must both work.
+# Binary sniffing would misfire: python3/pip ship in the base tooling too.
+case ",${SANDBOX_TOOLCHAINS:-}," in *,php,*)
     ver="$(COMPOSER_HOME=/tmp/doctor-composer composer --version 2>/dev/null)"
     code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' https://repo.packagist.org/packages.json 2>"$WORK/curl20.err")"
     { [ -n "$ver" ] && [ "$code" = "200" ]; }
-    report 20 $? "dev-php: composer runs and packagist is reachable" "http_code=$code $(head -1 "$WORK/curl20.err" 2>/dev/null)"
+    report 20 $? "php toolchain: composer runs and packagist is reachable" "http_code=$code $(head -1 "$WORK/curl20.err" 2>/dev/null)"
     ;;
-dev-python)
+esac
+case ",${SANDBOX_TOOLCHAINS:-}," in *,python,*)
     ver="$(python3 --version 2>/dev/null)"
     code="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' -I https://pypi.org/simple/pip/ 2>"$WORK/curl21.err")"
     { [ -n "$ver" ] && [ "$code" = "200" ]; }
-    report 21 $? "dev-python: python runs and PyPI is reachable" "http_code=$code $(head -1 "$WORK/curl21.err" 2>/dev/null)"
+    report 21 $? "python toolchain: python runs and PyPI is reachable" "http_code=$code $(head -1 "$WORK/curl21.err" 2>/dev/null)"
     ;;
 esac
 

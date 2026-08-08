@@ -17,8 +17,10 @@ asking questions (auto mode).
   composer is checksum-verified. No `curl | bash` anywhere.
 - **Multi-stage:** Claude Code is npm-installed in a builder stage and copied
   into the runtime image, keeping npm cache/layers out of the final image.
-  `dev-php` is an optional final stage (`BUILD_TARGET=dev-php`) so the
-  default image stays slim.
+  Optional language toolchains are a conditional install in the runtime
+  stage driven by the `TOOLCHAINS` build arg (comma list, `php,python`) —
+  a list, not extra stages, because combinations must compose and stages
+  cannot; the default image stays slim with the list empty.
 - **The base image's `node` user (uid 1000) is removed** and replaced by
   `dev` with build-arg UID/GID, so `/workspace` files are host-owned.
 
@@ -76,14 +78,14 @@ asking questions (auto mode).
   live allowlist diverges per machine/developer; make copies the template
   once (file target, never overwritten afterwards) so local additions don't
   create git noise. Same pattern as `.env` / `.env.example`.
-- **Dev-target domains are appended at proxy build time, not hand-edited.**
-  `BUILD_TARGET` is passed to the egress build as `SANDBOX_TARGET`; the
-  matching tracked fragment (`egress/allowlist.d/php.txt` / `python.txt`)
-  is merged (deduplicated) with the local base list. Switching the target
-  in `.env` therefore enables AND disables the toolchain's domains on the
-  next build — no stale registry access lingers after a target is dropped.
-  Doctor checks 20/21 assert the toolchain + its registry work whenever
-  the corresponding binaries exist in the image.
+- **Toolchain domains are appended at proxy build time, not hand-edited.**
+  `TOOLCHAINS` is passed to both image builds; the egress build merges one
+  tracked fragment per enabled toolchain (`egress/allowlist.d/<name>.txt`)
+  with the local base list (deduplicated; unknown names fail the build).
+  Editing the list in `.env` therefore enables AND disables toolchain
+  domains on the next build — no stale registry access lingers after a
+  toolchain is dropped. Doctor checks 20/21 are keyed on the same variable
+  and assert each enabled toolchain + its registry actually work.
 - **Local compose override via `docker-compose.override.yml`** (gitignored,
   tracked example file): the native compose idiom for per-machine tweaks.
   Docker auto-loads the name; the podman path appends it to its explicit

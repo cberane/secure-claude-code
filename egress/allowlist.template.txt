@@ -34,8 +34,8 @@ statsig.com
 .npmjs.org
 
 # --- Optional: uncomment what your stack needs -------------------------
-# NOTE: the dev-php / dev-python build targets append their toolchain
-# domains AUTOMATICALLY at proxy build time (see egress/allowlist.d/);
-# switching BUILD_TARGET in .env enables/disables them on the next
+# NOTE: enabled toolchains (TOOLCHAINS in .env, e.g. "php,python") append
+# their domains AUTOMATICALLY at proxy build time (see egress/allowlist.d/);
+# editing the list enables/disables them on the next
 # `make build && make restart`. Add entries below only for needs beyond
-# the built-in targets.
+# the built-in toolchains.

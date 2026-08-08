@@ -14,16 +14,18 @@ services:
   claude-code:
     build:
       context: .
-      target: ${BUILD_TARGET:-runtime}
+      target: runtime
       args:
         UID: ${UID:-1000}
         GID: ${GID:-1000}
+        # Comma list of optional language toolchains, e.g. "php,python".
+        TOOLCHAINS: ${TOOLCHAINS:-}
     env_file:
       - path: .env
         required: false
     environment:
-      # Lets doctor run the function checks matching the built target.
-      SANDBOX_TARGET: ${BUILD_TARGET:-runtime}
+      # Lets doctor run the function checks matching the built toolchains.
+      SANDBOX_TOOLCHAINS: ${TOOLCHAINS:-}
       HTTP_PROXY: http://egress-proxy:3128
       HTTPS_PROXY: http://egress-proxy:3128
       http_proxy: http://egress-proxy:3128
@@ -65,9 +67,9 @@ services:
     build:
       context: ./egress
       args:
-        # The sandbox build target drives which allowlist fragments the
+        # The enabled toolchains drive which allowlist fragments the
         # proxy bakes in (egress/allowlist.d/).
-        SANDBOX_TARGET: ${BUILD_TARGET:-runtime}
+        TOOLCHAINS: ${TOOLCHAINS:-}
     networks:
       - sandbox
       - egress

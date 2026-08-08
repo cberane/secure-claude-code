@@ -82,10 +82,10 @@ nothing else in either file.
 make build
 ```
 
-`make build` covers the stage selected by `BUILD_TARGET` in `.env`;
-additionally verify every OTHER optional stage still builds:
-`docker build --target dev-php .` and `docker build --target dev-python .`
-(respect `ENGINE`, skip the one already built).
+`make build` covers the toolchains selected by `TOOLCHAINS` in `.env`; if
+that list does not include `php`, additionally verify the composer path
+still builds: `docker build --build-arg TOOLCHAINS=php,python .`
+(respect `ENGINE`).
 
 ## Step 6 — End-to-end verification
 
