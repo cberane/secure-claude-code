@@ -5,10 +5,12 @@ asking questions (auto mode).
 
 ## Base image & toolchain
 
-- **`node:22-bookworm-slim` (digest-pinned) instead of `debian:bookworm-slim`
+- **`node:24-trixie-slim` (digest-pinned) instead of `debian:trixie-slim`
   for the main image.** Claude Code needs Node LTS anyway; the official node
-  image ships a maintained Node 22 + npm on the same Debian base. The egress
-  proxy uses `debian:bookworm-slim` (digest-pinned) since it needs no Node.
+  image ships a maintained Node 24 + npm on the same Debian base. Trixie
+  (not bookworm) because Debian 13 ships PHP 8.4 natively — a newer PHP
+  without third-party apt repos. The egress proxy uses `debian:trixie-slim`
+  (digest-pinned) since it needs no Node.
 - **apt packages are not individually version-pinned.** The base image digest
   pins the package universe at build time reproducibly enough for this use
   case; pinning every deb version would break on every point release without
@@ -127,8 +129,8 @@ asking questions (auto mode).
   key and re-prompts (interactive runs only, skippable with Enter).
   Otherwise a skipped confirmation could never be completed.
 - **Verification of rotated keys relies on git passing the commit timestamp
-  as `verify-time`** to `ssh-keygen -Y verify` (git ≥ 2.38; bookworm ships
-  2.39). Doctor check 18 proves it end-to-end.
+  as `verify-time`** to `ssh-keygen -Y verify` (git ≥ 2.38; trixie ships
+  2.47). Doctor check 18 proves it end-to-end.
 
 ### ssh-agent variant (documented, not implemented)
 

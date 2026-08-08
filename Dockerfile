@@ -12,7 +12,9 @@
 #              install (python3/pip/venv are base tooling) but is still a
 #              valid entry — it switches the PyPI egress domains on.
 
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03
+# trixie (not bookworm): Debian 13 ships PHP 8.4 natively, keeping the
+# php toolchain on Debian-signed packages without third-party repos.
+ARG NODE_IMAGE=node:24-trixie-slim@sha256:0711b541c1c33a8a530ac4f0d391baa9a15b3d804695b1b24a47daa5fb60e74d
 
 ########################################################################
 # builder — Claude Code npm install, isolated from the runtime image

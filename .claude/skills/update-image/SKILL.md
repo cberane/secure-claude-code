@@ -14,7 +14,7 @@ sandbox.
 
 | Pin | File | Location |
 |---|---|---|
-| `node:24-bookworm-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
+| `node:24-trixie-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
 | `@anthropic-ai/claude-code` version | `Dockerfile` | `ARG CLAUDE_CODE_VERSION=` |
 | Composer version + sha256 | `Dockerfile` | `ARG COMPOSER_VERSION=` / `ARG COMPOSER_SHA256=` |
 | `debian:trixie-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
@@ -30,7 +30,7 @@ sandbox.
 ```sh
 # Base image digests (index digest — works regardless of ENGINE, needs docker;
 # fallback: skopeo inspect --format '{{.Digest}}' docker://docker.io/library/<image>):
-docker buildx imagetools inspect node:24-bookworm-slim   | awk '/^Digest:/{print $2}'
+docker buildx imagetools inspect node:24-trixie-slim   | awk '/^Digest:/{print $2}'
 docker buildx imagetools inspect debian:trixie-slim      | awk '/^Digest:/{print $2}'
 
 # Claude Code (npm dist-tag latest):
@@ -42,7 +42,7 @@ curl -fsS "https://getcomposer.org/download/${V}/composer.phar.sha256sum" | cut 
 ```
 
 Rules:
-- Stay on the same base-image *tags* (`24-bookworm-slim`, `trixie-slim`) —
+- Stay on the same base-image *tags* (`24-trixie-slim`, `trixie-slim`) —
   only refresh digests. A major/tag bump (Node 26, next Debian release) is a
   human decision: never apply it unasked in this skill, but DO detect and
   report it (see below).
@@ -52,8 +52,8 @@ Rules:
   Debian release is available for `egress/Dockerfile` and offer to bump the
   tag as a separate, explicitly confirmed change (new tag + its digest, then
   the same build/verify/rollback cycle). Same idea for Node: check whether
-  `node:lts-bookworm-slim` still matches major 24 (`docker run --rm
-  node:lts-bookworm-slim node --version` or the npm dist metadata).
+  `node:lts-trixie-slim` still matches major 24 (`docker run --rm
+  node:lts-trixie-slim node --version` or the npm dist metadata).
 - Never write a Composer version without its matching checksum from the
   `.sha256sum` URL. If the checksum fetch fails, keep the old Composer pin.
 - Compare against the current pins (grep the two files). If nothing changed,
