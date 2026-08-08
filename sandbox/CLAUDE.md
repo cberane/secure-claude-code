@@ -57,5 +57,10 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   confirm** the allowlist change and proxy restart — the same protocol as
   git remote operations.
 - Only `/workspace`, `/tmp` and `~/.claude` are writable.
+- When docker is available (`docker` CLI + dind sidecar): image pulls are
+  restricted to an allowlist. If a pull fails with a 403/Forbidden, do NOT
+  retry or work around it — print a HOST ACTION REQUIRED box asking the
+  user to add the image to `dind/images-allowlist.txt` on the host and run
+  `make restart`, then **STOP and wait for confirmation**.
 - If the pre-commit hook reports the signing key as too old, stop and ask
   the user to run `make rotate-signing-key` on the host.

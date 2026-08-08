@@ -102,6 +102,23 @@ asking questions (auto mode).
   on the internal network (no TLS) — acceptable: same trust domain as the
   claude-code container itself. Off by default; dropping `docker` from
   `TOOLCHAINS` removes CLI, sidecar, and registry domains together.
+- **The dind API is only reachable through a filtering guard.** The
+  daemon lives on an isolated internal network (`dind-net`: daemon,
+  guard, egress proxy — never claude-code), so the sandbox has no route
+  to the raw API; bypass is topological, not policy. `dind-guard`
+  (digest-pinned haproxy, hardened) bridges the networks under the
+  sandbox-side alias `dind`: :2376 is the filtered API (image pull
+  allowlist `dind/images-allowlist.txt`, local-from-template like the
+  egress list, plus a hard deny on `docker load`/import sideloading) and
+  common dev ports are TCP-forwarded 1:1 so published services stay
+  reachable at `dind:<port>`. Network isolation instead of a shared
+  network namespace because the rootless dind entrypoint force-adds its
+  own tcp listener — a loopback-only daemon bind is not achievable
+  without forking the entrypoint. Known gap, accepted and documented:
+  buildkit pulls base images daemon-internally, so `docker build` FROM
+  images bypass the pull filter — the egress allowlist still bounds
+  which registries are reachable at all. Doctor check 23 proves deny +
+  no-bypass end-to-end.
 - **Local compose override via `docker-compose.override.yml`** (gitignored,
   tracked example file): the native compose idiom for per-machine tweaks.
   Docker auto-loads the name; the podman path appends it to its explicit

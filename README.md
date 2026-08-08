@@ -209,10 +209,19 @@ Differences from Docker:
     the `dind` hostname (e.g. `curl dind:8080`); nested image builds
     needing further domains (Ubuntu archives, PPAs) will surface them
     via `blocked-domains`.
+  - **Image pull control:** the sandbox talks to dind only through a
+    filtering guard (`dind-guard`) — pulls are limited to images matching
+    `dind/images-allowlist.txt` (local, from the tracked template;
+    `make restart` applies edits) and `docker load`/import is denied.
+    The daemon itself lives on an isolated network the sandbox cannot
+    reach; the guard bridges it under the alias `dind` (API on :2376,
+    common dev ports TCP-forwarded). Base images of nested
+    `docker build`s are pulled daemon-internally and are not filtered
+    (the egress allowlist still bounds registries).
   - Each enabled toolchain automatically enables its registry domains at
     the proxy (`egress/allowlist.d/<toolchain>.txt`) — and drops them
     again when removed from the list — plus a doctor function check
-    (20-22) asserting the toolchain runs and its registry is reachable.
+    (20-23) asserting the toolchain runs and its registry is reachable.
 - **Custom seccomp:** `security/seccomp.json` documents the syscalls that
   matter; read its `_comment` before enabling — the runtime default profile
   is the better choice unless you have a concrete reason.

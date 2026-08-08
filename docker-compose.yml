@@ -26,9 +26,10 @@ services:
     environment:
       # Lets doctor run the function checks matching the built toolchains.
       SANDBOX_TOOLCHAINS: ${TOOLCHAINS:-}
-      # Docker CLI target: the rootless dind sidecar (docker toolchain +
-      # profile only; the variable is inert when the CLI is not installed).
-      DOCKER_HOST: tcp://dind:2375
+      # Docker CLI target: the dind-guard filter in front of the rootless
+      # dind sidecar (docker toolchain + profile only; the variable is
+      # inert when the CLI is not installed).
+      DOCKER_HOST: tcp://dind:2376
       HTTP_PROXY: http://egress-proxy:3128
       HTTPS_PROXY: http://egress-proxy:3128
       http_proxy: http://egress-proxy:3128
@@ -76,6 +77,7 @@ services:
     networks:
       - sandbox
       - egress
+      - dind-net
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -95,13 +97,15 @@ services:
     sysctls:
       net.ipv6.conf.all.disable_ipv6: 1
 
-  # Rootless docker-in-docker sidecar — ONLY started when the `docker`
+  # Rootless docker-in-docker daemon — ONLY started when the `docker`
   # compose profile is active (the Makefile activates it when TOOLCHAINS
   # contains "docker"). Trade-off, documented in DECISIONS.md: `privileged`
   # is unavoidable even rootless, but the daemon runs in a user namespace,
   # so the agent controlling its API is root only inside that userns.
-  # Internal network only; all registry traffic leaves via the egress proxy.
-  dind:
+  # Lives on the isolated dind-net ONLY: the sandbox has no route to the
+  # raw API on 2375 — every access goes through dind-guard. Registry
+  # traffic leaves via the egress proxy (also on dind-net).
+  dind-daemon:
     image: docker:29-dind-rootless@sha256:7451e3dc398b11ba2d8183bb7915402683e3d32e5ec8cef835c215f314a65fef
     profiles: ["docker"]
     privileged: true
@@ -110,12 +114,9 @@ services:
       # Registry pulls done by the daemon go through the egress allowlist.
       HTTP_PROXY: http://egress-proxy:3128
       HTTPS_PROXY: http://egress-proxy:3128
-      NO_PROXY: localhost,127.0.0.1,dind
-    command:
-      - --host=tcp://0.0.0.0:2375
-      - --tls=false
+      NO_PROXY: localhost,127.0.0.1
     networks:
-      - sandbox
+      - dind-net
     depends_on:
       - egress-proxy
     volumes:
@@ -126,12 +127,44 @@ services:
     pids_limit: 1024
     mem_limit: ${DIND_MEM_LIMIT:-4g}
 
+  # API guard: the ONLY bridge between the sandbox and the dind daemon.
+  # Exposes the FILTERED Docker API on :2376 (image pull allowlist, no
+  # sideloading) and TCP-forwards common dev/app ports so services
+  # published inside dind stay reachable. Carries the network alias
+  # "dind" on the sandbox net, so the agent-facing names stay dind:2376
+  # (API) and dind:<port> (apps).
+  dind-guard:
+    image: haproxy:3.2-alpine@sha256:79799e8b2977e60802774fa53d29e6b54e045402cdd8a8b9fe43923e7095a047
+    profiles: ["docker"]
+    networks:
+      sandbox:
+        aliases:
+          - dind
+      dind-net: {}
+    depends_on:
+      - dind-daemon
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    volumes:
+      - ./dind/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./dind/images-allowlist.txt:/etc/haproxy/images-allowlist.txt:ro
+
 networks:
   # internal: true — no gateway to the outside world or the host LAN.
   sandbox:
     internal: true
   # Only the proxy sits on a network with external connectivity.
   egress: {}
+  # Isolated net for the dind daemon: members are dind-daemon, dind-guard
+  # and egress-proxy — never claude-code, so the unfiltered API stays out
+  # of the sandbox's reach.
+  dind-net:
+    internal: true
 
 volumes:
   # Persistent Claude Code session/config state (OAuth token lives here).

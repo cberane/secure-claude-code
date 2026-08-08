@@ -20,6 +20,7 @@ sandbox.
 | Docker CLI version + sha256 | `Dockerfile` | `ARG DOCKER_CLI_VERSION=` / `ARG DOCKER_CLI_SHA256=` |
 | Compose plugin version + sha256 | `Dockerfile` | `ARG COMPOSE_PLUGIN_VERSION=` / `ARG COMPOSE_PLUGIN_SHA256=` |
 | `docker:29-dind-rootless@sha256:…` | `docker-compose.yml` | `dind` service `image:` |
+| `haproxy:3.2-alpine@sha256:…` | `docker-compose.yml` | `dind-guard` service `image:` |
 | `debian:trixie-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
 
 ## Step 1 — Preconditions
@@ -45,6 +46,9 @@ curl -fsS "https://getcomposer.org/download/${V}/composer.phar.sha256sum" | cut 
 
 # dind sidecar (stay on the 29 major; a major bump is a human decision):
 docker buildx imagetools inspect docker:29-dind-rootless | awk '/^Digest:/{print $2}'
+
+# dind-guard (stay on the 3.2 tag; a tag bump is a human decision):
+docker buildx imagetools inspect haproxy:3.2-alpine | awk '/^Digest:/{print $2}'
 
 # Docker CLI: newest 29.x static build; NO vendor checksum exists — download
 # and compute sha256 yourself (trust on first download):

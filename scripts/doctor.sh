@@ -313,6 +313,17 @@ case ",${SANDBOX_TOOLCHAINS:-}," in *,docker,*)
         printf '%s' "$out" | grep -q "Hello from Docker" || ok=1
     fi
     report 22 $ok "docker toolchain: dind reachable, pull+run via proxy works" "$(printf '%s' "${out:-daemon unreachable}" | head -1)"
+
+    # --- 23: image pull control -------------------------------------------
+    # Non-allowlisted pulls must be denied by dind-guard, and the raw
+    # daemon must not be reachable (it lives on the isolated dind-net;
+    # "dind" is only a guard alias that doesn't expose 2375).
+    ok=0
+    docker pull alpine >/dev/null 2>&1 && ok=1
+    docker rmi alpine >/dev/null 2>&1 && ok=1   # must not exist either way
+    docker -H tcp://dind:2375 version >/dev/null 2>&1 && ok=1
+    docker -H tcp://dind-daemon:2375 version >/dev/null 2>&1 && ok=1
+    report 23 $ok "dind-guard denies non-allowlisted image pulls and raw API access"
     ;;
 esac
 

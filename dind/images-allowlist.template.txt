@@ -1,0 +1,22 @@
+# Image pull allowlist TEMPLATE for the dind sidecar — one REGEX per line,
+# matched against the full `fromImage` value the docker client sends
+# (e.g. "postgres", "library/postgres" or "docker.io/library/postgres").
+#
+# This file is the tracked template. The dind guard uses the LOCAL,
+# gitignored copy dind/images-allowlist.txt, created from this template on
+# first `make` run. After editing the local copy: make restart
+#
+# Keep this list MINIMAL — every image is code the sandbox will execute.
+# Note: base images of nested `docker build`s are pulled daemon-internally
+# and are NOT filtered here (the egress allowlist still bounds registries).
+
+# Required by doctor check 22:
+^(docker\.io/)?(library/)?hello-world$
+
+# --- Examples: uncomment what your stack needs (Laravel Sail set) ------
+#^(docker\.io/)?(library/)?postgres$
+#^(docker\.io/)?(library/)?mysql$
+#^(docker\.io/)?(library/)?mariadb$
+#^(docker\.io/)?(library/)?redis$
+#^(docker\.io/)?axllent/mailpit$
+#^(docker\.io/)?getmeili/meilisearch$

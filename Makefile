@@ -38,10 +38,15 @@ egress/allowlist.txt:
 	cp egress/allowlist.template.txt $@
 	@echo "Created local $@ from template (gitignored — edit freely)."
 
-build: egress/allowlist.txt ## Build the sandbox images
+# Local dind image-pull allowlist: same template pattern.
+dind/images-allowlist.txt:
+	cp dind/images-allowlist.template.txt $@
+	@echo "Created local $@ from template (gitignored — edit freely)."
+
+build: egress/allowlist.txt dind/images-allowlist.txt ## Build the sandbox images
 	$(COMPOSE) build
 
-up: keygen egress/allowlist.txt ## Start the sandbox in the background
+up: keygen egress/allowlist.txt dind/images-allowlist.txt ## Start the sandbox in the background
 	$(COMPOSE) up -d
 
 down: ## Stop the sandbox
@@ -49,15 +54,15 @@ down: ## Stop the sandbox
 
 restart: down up ## Restart (required after key rotation)
 
-shell: keygen egress/allowlist.txt ## Interactive shell inside the sandbox
+shell: keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
 	@scripts/check-key-age.sh --context session || true
 	$(COMPOSE) run --rm claude-code bash
 
-claude: keygen egress/allowlist.txt ## Run Claude Code interactively inside the sandbox
+claude: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
 	@scripts/check-key-age.sh --context session || true
 	$(COMPOSE) run --rm claude-code claude
 
-yolo: keygen egress/allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
+yolo: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	@scripts/check-key-age.sh --context session || true
 	$(COMPOSE) run --rm claude-code claude --dangerously-skip-permissions
 
@@ -67,7 +72,7 @@ keygen: ## Ensure the signing key exists (idempotent, host-side)
 rotate-signing-key: ## Rotate the signing key (interactive, host-side)
 	@scripts/rotate-signing-key.sh
 
-doctor: keygen egress/allowlist.txt ## Run the full hardening self-test (host + container)
+doctor: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run the full hardening self-test (host + container)
 	@scripts/doctor.sh --host
 
 install-hooks: ## Install the secret-blocking pre-commit hook into THIS repo

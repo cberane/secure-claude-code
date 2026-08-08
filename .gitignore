@@ -21,3 +21,6 @@ docker-compose.override.yml
 !.claude/skills/
 *.log
 tmp/
+
+# Local, per-machine dind image-pull policy (created from dind/images-allowlist.template.txt)
+dind/images-allowlist.txt
