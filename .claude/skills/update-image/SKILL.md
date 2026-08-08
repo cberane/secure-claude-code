@@ -17,6 +17,9 @@ sandbox.
 | `node:24-trixie-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
 | `@anthropic-ai/claude-code` version | `Dockerfile` | `ARG CLAUDE_CODE_VERSION=` |
 | Composer version + sha256 | `Dockerfile` | `ARG COMPOSER_VERSION=` / `ARG COMPOSER_SHA256=` |
+| Docker CLI version + sha256 | `Dockerfile` | `ARG DOCKER_CLI_VERSION=` / `ARG DOCKER_CLI_SHA256=` |
+| Compose plugin version + sha256 | `Dockerfile` | `ARG COMPOSE_PLUGIN_VERSION=` / `ARG COMPOSE_PLUGIN_SHA256=` |
+| `docker:29-dind-rootless@sha256:…` | `docker-compose.yml` | `dind` service `image:` |
 | `debian:trixie-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
 
 ## Step 1 — Preconditions
@@ -39,7 +42,22 @@ npm view @anthropic-ai/claude-code version
 # Composer: latest stable + official checksum:
 V=$(curl -fsS https://getcomposer.org/versions | jq -r '.stable[0].version')
 curl -fsS "https://getcomposer.org/download/${V}/composer.phar.sha256sum" | cut -d' ' -f1
+
+# dind sidecar (stay on the 29 major; a major bump is a human decision):
+docker buildx imagetools inspect docker:29-dind-rootless | awk '/^Digest:/{print $2}'
+
+# Docker CLI: newest 29.x static build; NO vendor checksum exists — download
+# and compute sha256 yourself (trust on first download):
+curl -fsS https://download.docker.com/linux/static/stable/x86_64/ \
+  | grep -oE 'docker-29\.[0-9]+\.[0-9]+\.tgz' | sort -Vu | tail -1
+curl -fsSLo /tmp/docker.tgz "https://download.docker.com/linux/static/stable/x86_64/docker-<V>.tgz" && sha256sum /tmp/docker.tgz
+
+# Compose plugin: latest release + official checksums.txt:
+curl -fsS https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name
+# then grep docker-compose-linux-x86_64 in the release's checksums.txt asset
 ```
+
+Keep the Docker CLI major aligned with the dind image major (both 29).
 
 Rules:
 - Stay on the same base-image *tags* (`24-trixie-slim`, `trixie-slim`) —

@@ -300,6 +300,21 @@ case ",${SANDBOX_TOOLCHAINS:-}," in *,python,*)
     report 21 $? "python toolchain: python runs and PyPI is reachable" "http_code=$code $(head -1 "$WORK/curl21.err" 2>/dev/null)"
     ;;
 esac
+case ",${SANDBOX_TOOLCHAINS:-}," in *,docker,*)
+    # The dind sidecar may still be starting — retry the daemon probe.
+    ok=1
+    for _ in 1 2 3 4 5 6; do
+        if docker version >/dev/null 2>&1; then ok=0; break; fi
+        sleep 5
+    done
+    if [ "$ok" -eq 0 ]; then
+        # End-to-end: pull through the egress proxy + run in the sidecar.
+        out="$(docker run --rm hello-world 2>&1)"
+        printf '%s' "$out" | grep -q "Hello from Docker" || ok=1
+    fi
+    report 22 $ok "docker toolchain: dind reachable, pull+run via proxy works" "$(printf '%s' "${out:-daemon unreachable}" | head -1)"
+    ;;
+esac
 
 cd /
 summary

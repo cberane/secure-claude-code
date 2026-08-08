@@ -26,12 +26,15 @@ services:
     environment:
       # Lets doctor run the function checks matching the built toolchains.
       SANDBOX_TOOLCHAINS: ${TOOLCHAINS:-}
+      # Docker CLI target: the rootless dind sidecar (docker toolchain +
+      # profile only; the variable is inert when the CLI is not installed).
+      DOCKER_HOST: tcp://dind:2375
       HTTP_PROXY: http://egress-proxy:3128
       HTTPS_PROXY: http://egress-proxy:3128
       http_proxy: http://egress-proxy:3128
       https_proxy: http://egress-proxy:3128
-      NO_PROXY: localhost,127.0.0.1
-      no_proxy: localhost,127.0.0.1
+      NO_PROXY: localhost,127.0.0.1,dind
+      no_proxy: localhost,127.0.0.1,dind
     networks:
       - sandbox
     depends_on:
@@ -92,6 +95,37 @@ services:
     sysctls:
       net.ipv6.conf.all.disable_ipv6: 1
 
+  # Rootless docker-in-docker sidecar — ONLY started when the `docker`
+  # compose profile is active (the Makefile activates it when TOOLCHAINS
+  # contains "docker"). Trade-off, documented in DECISIONS.md: `privileged`
+  # is unavoidable even rootless, but the daemon runs in a user namespace,
+  # so the agent controlling its API is root only inside that userns.
+  # Internal network only; all registry traffic leaves via the egress proxy.
+  dind:
+    image: docker:29-dind-rootless@sha256:7451e3dc398b11ba2d8183bb7915402683e3d32e5ec8cef835c215f314a65fef
+    profiles: ["docker"]
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+      # Registry pulls done by the daemon go through the egress allowlist.
+      HTTP_PROXY: http://egress-proxy:3128
+      HTTPS_PROXY: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1,dind
+    command:
+      - --host=tcp://0.0.0.0:2375
+      - --tls=false
+    networks:
+      - sandbox
+    depends_on:
+      - egress-proxy
+    volumes:
+      - dind-storage:/home/rootless/.local/share/docker
+      # Same path as in claude-code, so bind mounts in nested compose
+      # files (e.g. Sail's ".:/var/www/html") resolve to the same files.
+      - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
+    pids_limit: 1024
+    mem_limit: ${DIND_MEM_LIMIT:-4g}
+
 networks:
   # internal: true — no gateway to the outside world or the host LAN.
   sandbox:
@@ -111,3 +145,5 @@ volumes:
       type: tmpfs
       device: tmpfs
       o: "size=16m,mode=1777"
+  # Image/layer storage of the dind sidecar (docker profile only).
+  dind-storage:

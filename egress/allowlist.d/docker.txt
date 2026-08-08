@@ -1,0 +1,11 @@
+# Domains appended automatically when TOOLCHAINS contains "docker".
+# Docker Hub PULL endpoints used by the dind sidecar (registry-1, auth,
+# index — covered by the wildcard) plus the layer CDN. Anonymous pull
+# works; push requires credentials that do not exist in the sandbox.
+# Image builds inside dind (e.g. Laravel Sail) may need further domains
+# (Ubuntu archives, PPAs, ...): run `blocked-domains` after a failed build
+# and add what is genuinely needed to the local allowlist.
+.docker.io
+# Layer CDN — Hub has used both CDN vendors over time; allow either.
+production.cloudfront.docker.com
+production.cloudflare.docker.com

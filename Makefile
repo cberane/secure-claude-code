@@ -8,6 +8,12 @@
 
 ENGINE ?= docker
 export ENGINE
+
+# The dind sidecar lives behind a compose profile so it only exists when
+# the docker toolchain is enabled in .env (TOOLCHAINS=...,docker).
+ifneq (,$(findstring docker,$(TOOLCHAINS)))
+export COMPOSE_PROFILES=docker
+endif
 ifeq ($(ENGINE),podman)
 # Explicit -f list disables compose's auto-loading, so the local override
 # (if present) must be appended by hand — last file wins on conflicts.

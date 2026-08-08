@@ -126,6 +126,40 @@ RUN case ",${TOOLCHAINS}," in \
         ;; \
     esac
 
+# docker: static CLI + compose plugin talking to the rootless dind sidecar
+# (DOCKER_HOST is set by compose). No daemon in this image. The CLI tgz has
+# no vendor-published checksum — the sha256 below was computed at pin time
+# (trust on first download, verified on every build thereafter). The client
+# config injects the egress proxy into `docker build` runs inside dind so
+# apt/composer/npm in nested builds obey the allowlist.
+ARG DOCKER_CLI_VERSION=29.7.2
+ARG DOCKER_CLI_SHA256=803d433f226db4776e1768fd319fc6c6e4935a456acf84fcc0080818b854bc8f
+ARG COMPOSE_PLUGIN_VERSION=v5.4.0
+ARG COMPOSE_PLUGIN_SHA256=837fd1d35bf6a494f41b5b5988269a7be79de337cf1a1a6ff0e45ab51bb4e9be
+
+RUN case ",${TOOLCHAINS}," in \
+    *,docker,*) \
+        curl -fsSLo /tmp/docker.tgz \
+            "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" \
+        && echo "${DOCKER_CLI_SHA256}  /tmp/docker.tgz" | sha256sum -c - \
+        && tar -xzf /tmp/docker.tgz -C /tmp docker/docker \
+        && install -m 0755 /tmp/docker/docker /usr/local/bin/docker \
+        && rm -rf /tmp/docker /tmp/docker.tgz \
+        && mkdir -p /usr/local/lib/docker/cli-plugins \
+        && curl -fsSLo /usr/local/lib/docker/cli-plugins/docker-compose \
+            "https://github.com/docker/compose/releases/download/${COMPOSE_PLUGIN_VERSION}/docker-compose-linux-x86_64" \
+        && echo "${COMPOSE_PLUGIN_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c - \
+        && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
+        && mkdir -p /etc/docker-client \
+        && printf '%s\n' \
+            '{"proxies":{"default":{' \
+            '  "httpProxy":"http://egress-proxy:3128",' \
+            '  "httpsProxy":"http://egress-proxy:3128",' \
+            '  "noProxy":"localhost,127.0.0.1,dind"}}}' \
+            > /etc/docker-client/config.json \
+        ;; \
+    esac
+
 ENV PATH=/home/dev/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     # All Claude Code state lives in the persistent named volume.
     CLAUDE_CONFIG_DIR=/home/dev/.claude \
@@ -137,7 +171,10 @@ ENV PATH=/home/dev/.npm-global/bin:/usr/local/bin:/usr/bin:/bin \
     TMPDIR=/tmp \
     # Global git config lives on tmpfs — written by the entrypoint on every
     # start (rootfs and $HOME are read-only at runtime).
-    GIT_CONFIG_GLOBAL=/tmp/.gitconfig
+    GIT_CONFIG_GLOBAL=/tmp/.gitconfig \
+    # Docker client config (proxy injection for nested builds); the path
+    # only exists when the docker toolchain is enabled, harmless otherwise.
+    DOCKER_CONFIG=/etc/docker-client
 
 WORKDIR /workspace
 USER dev

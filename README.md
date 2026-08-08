@@ -197,10 +197,22 @@ Differences from Docker:
   - `python` installs nothing extra (`python3`/`pip`/`venv` are base
     tooling); the entry switches on PyPI access. Create virtualenvs inside
     `/workspace` — `/tmp` is `noexec`, so native wheel builds fail there.
+  - `docker` installs a pinned static docker CLI + compose plugin and
+    starts a **rootless docker-in-docker sidecar** (`dind`, compose
+    profile, off otherwise) so nested stacks like Laravel Sail
+    (databases, mailpit, ...) run *inside* the sandbox boundary. The
+    host Docker socket stays absent (doctor check 5). Notes: the sidecar
+    is `privileged` but userns-confined (see DECISIONS.md); registry
+    pulls go through the egress allowlist (Docker Hub pull endpoints
+    auto-enabled); rootless dind cannot bind ports below 1024 (Sail:
+    set `APP_PORT=8080`); services are reachable from the sandbox at
+    the `dind` hostname (e.g. `curl dind:8080`); nested image builds
+    needing further domains (Ubuntu archives, PPAs) will surface them
+    via `blocked-domains`.
   - Each enabled toolchain automatically enables its registry domains at
     the proxy (`egress/allowlist.d/<toolchain>.txt`) — and drops them
     again when removed from the list — plus a doctor function check
-    (20/21) asserting the toolchain runs and its registry is reachable.
+    (20-22) asserting the toolchain runs and its registry is reachable.
 - **Custom seccomp:** `security/seccomp.json` documents the syscalls that
   matter; read its `_comment` before enabling — the runtime default profile
   is the better choice unless you have a concrete reason.

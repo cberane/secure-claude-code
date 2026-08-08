@@ -86,8 +86,22 @@ asking questions (auto mode).
   with the local base list (deduplicated; unknown names fail the build).
   Editing the list in `.env` therefore enables AND disables toolchain
   domains on the next build — no stale registry access lingers after a
-  toolchain is dropped. Doctor checks 20/21 are keyed on the same variable
+  toolchain is dropped. Doctor checks 20-22 are keyed on the same variable
   and assert each enabled toolchain + its registry actually work.
+- **Docker-in-docker is a rootless sidecar, never the host socket.**
+  Mounting `/var/run/docker.sock` is root-equivalent on the host and would
+  void the entire sandbox (check 5 asserts its absence). The `docker`
+  toolchain instead starts a digest-pinned `docker:dind-rootless` sidecar
+  behind a compose profile: `privileged` is unavoidable even rootless, but
+  the daemon runs in a user namespace, so the agent controlling its API is
+  root only inside that userns — a host escape additionally requires a
+  kernel/userns vulnerability. The sidecar sits on the internal network
+  only; registry traffic exits via the egress proxy, and the sandbox
+  client config injects the proxy into nested `docker build` runs so apt/
+  composer/npm inside builds obey the allowlist too. API is plaintext TCP
+  on the internal network (no TLS) — acceptable: same trust domain as the
+  claude-code container itself. Off by default; dropping `docker` from
+  `TOOLCHAINS` removes CLI, sidecar, and registry domains together.
 - **Local compose override via `docker-compose.override.yml`** (gitignored,
   tracked example file): the native compose idiom for per-machine tweaks.
   Docker auto-loads the name; the podman path appends it to its explicit
