@@ -4,7 +4,7 @@
 # copy egress/allowlist.txt, created from this template on first `make` run.
 # Edit allowlist.txt for machine-local needs without touching git; changes
 # that every developer needs belong in this template.
-# After editing the local copy: make build && make restart
+# After editing the local copy: make reload-egress
 #
 #   example.com   matches exactly example.com
 #   .example.com  matches example.com AND all subdomains
@@ -37,5 +37,5 @@ statsig.com
 # NOTE: enabled toolchains (TOOLCHAINS in .env, e.g. "php,python") append
 # their domains AUTOMATICALLY at proxy build time (see egress/allowlist.d/);
 # editing the list enables/disables them on the next
-# `make build && make restart`. Add entries below only for needs beyond
+# `make reload-egress`. Add entries below only for needs beyond
 # the built-in toolchains.

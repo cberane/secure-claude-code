@@ -52,9 +52,8 @@ make claude               # or: make yolo  (--dangerously-skip-permissions)
 
 On first run, `make` also creates the local egress policy
 `egress/allowlist.txt` from `egress/allowlist.template.txt`. The local copy
-is gitignored — extend it freely per machine (then
-`make build && make restart`); only changes every developer needs go into
-the tracked template.
+is gitignored — extend it freely per machine (then `make reload-egress`);
+only changes every developer needs go into the tracked template.
 
 On first start, `make` provisions a dedicated **signing-only** SSH key under
 `secrets/git-signing/` (host-side, gitignored) and prints the public key.
@@ -85,9 +84,11 @@ The same protocol covers blocked egress: when a request is denied by the
 proxy (403), the agent runs `blocked-domains`, which lists every domain
 denied since the last proxy restart in a `HOST ACTION REQUIRED` block.
 Review the list, append only the genuinely needed domains to
-`egress/allowlist.txt`, then `make build && make restart`. Add domains
-sparingly — the security model depends on a narrow allowlist (see
-"Signing key exfiltration trade-off" below), and never add git hosts.
+`egress/allowlist.txt`, then `make reload-egress` — that rebuilds and
+recreates only the proxy, so a running session and any nested containers
+survive. Add domains sparingly — the security model depends on a narrow
+allowlist (see "Signing key exfiltration trade-off" below), and never add
+git hosts. `make denied` prints the same report from the host.
 
 ## Commit signing & key rotation
 
@@ -185,6 +186,13 @@ Differences from Docker:
   images), then `make build`.
 - **Logged-out / corrupt Claude state:** `make distclean` also removes the
   `claude-config` volume (you'll need to `/login` again).
+- **Disk filling up:** `make df` shows host usage *and* the nested dind
+  daemon's, which lives inside the `dind-storage` volume and is invisible
+  to a plain `docker system df`. Reclaim with `make prune` (dangling
+  images), `make prune-build` (host build cache — often the largest item),
+  `make prune-dind` (stopped containers and dangling images inside dind) or
+  `make clean-dind` (drops the whole nested image store; keeps your Claude
+  login, unlike `distclean`).
 - **Key trouble:** keys live only under `secrets/git-signing/` on the host.
   Archived keys are in `secrets/git-signing/archive/<fingerprint>/`.
 
@@ -231,7 +239,8 @@ Differences from Docker:
   - **Image pull control:** the sandbox talks to dind only through a
     filtering guard (`dind-guard`) — pulls are limited to images matching
     `dind/images-allowlist.txt` (local, from the tracked template;
-    `make restart` applies edits) and `docker load`/import is denied.
+    `make reload-images` applies edits without touching the daemon) and
+    `docker load`/import is denied.
     The daemon itself lives on an isolated network the sandbox cannot
     reach; the guard bridges it under the alias `dind` (API on :2376,
     common dev ports TCP-forwarded). Base images of nested

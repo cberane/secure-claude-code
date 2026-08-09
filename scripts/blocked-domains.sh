@@ -19,12 +19,14 @@ PROXY="${https_proxy:-http://egress-proxy:3128}"
 # squid logformat: field 4 = %Ss/%03>Hs (e.g. TCP_DENIED/403), field 7 = %ru
 # (CONNECT: "host:443"; plain HTTP: "http://host/path"). Bare IP literals
 # are dropped: to_localnet denials are by design and dstdomain entries would
-# not unblock them anyway.
+# not unblock them anyway. The hostname pattern requires at least one dot,
+# which also drops single-label internal names (dind-daemon, ...) — those
+# are compose service names, never something to put on the allowlist.
 denied=""
 if [ -r "$LOG" ]; then
     denied="$(awk '$4 ~ /^TCP_DENIED/ {print $7}' "$LOG" \
         | sed -E 's#^[A-Za-z][A-Za-z0-9+.-]*://##; s#/.*$##; s#:[0-9]+$##' \
-        | grep -E '^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$' \
+        | grep -E '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$' \
         | grep -vE '^[0-9]+(\.[0-9]+){3}$')"
 else
     echo "blocked-domains: note: $LOG is not readable — is the egress-logs volume mounted?" >&2
@@ -55,9 +57,12 @@ fi
     done <<<"$denied"
     echo "│"
     echo "│ On the HOST, append each domain that is genuinely needed"
-    echo "│ to egress/allowlist.txt, then rebuild and restart:"
+    echo "│ to egress/allowlist.txt, then reload the proxy:"
     echo "│"
-    echo "│   make build && make restart"
+    echo "│   make reload-egress"
+    echo "│"
+    echo "│ (Rebuilds and recreates only the proxy — this session and"
+    echo "│  any nested containers keep running.)"
     echo "│"
     echo "│ WARNING: every allowlist entry is a potential exfiltration"
     echo "│ channel — add only what the task needs, and NEVER git hosts"

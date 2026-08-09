@@ -129,7 +129,9 @@ $(ENGINE from .env) compose run --rm -T claude-code claude --version
    RUNNING container, untag with `-f` (safe — only removes the name) and do
    not touch the container itself.
 2. Reclaim disk space: `make prune` (engine-aware `image prune -f`; the
-   superseded images are dangling now, nothing tagged is removed).
+   superseded images are dangling now, nothing tagged is removed). Check
+   `make df` afterwards — if the build cache has grown large, mention
+   `make prune-build` to the user rather than running it unasked.
 3. Commit (signed, conventional, no attribution):
    `build: bump pinned image and tool versions`
    with a body listing each pin old → new.

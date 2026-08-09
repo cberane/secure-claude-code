@@ -61,7 +61,7 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   restricted to an allowlist. If a pull fails with a 403/Forbidden, do NOT
   retry or work around it — print a HOST ACTION REQUIRED box asking the
   user to add the image to `dind/images-allowlist.txt` on the host and run
-  `make restart`, then **STOP and wait for confirmation**.
+  `make reload-images`, then **STOP and wait for confirmation**.
 - To let the user open a dev server in their host browser: bind it to
   `0.0.0.0:8080` (in this container, or published on 8080 inside dind,
   e.g. Sail with `APP_PORT=8080`) — the host may reach it at

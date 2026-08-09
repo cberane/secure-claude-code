@@ -29,6 +29,12 @@ only *inside* the sandbox, never to this development environment.
 ## Useful entry points
 
 - `make build` / `make doctor` — rebuild images, run the 19 end-to-end checks.
+- `make reload-egress` / `reload-images` / `reload-ingress` — apply an
+  allowlist or ingress change by rebuilding only that one service. Prefer
+  these over `make restart`, which drops the dind sidecar and with it every
+  nested container (Sail databases, mailpit, ...).
+- `make ps` / `make df` / `make denied` — state, disk usage (host *and* the
+  nested dind daemon) and the proxy's denied domains, from the host.
 - `.claude/skills/update-image` — refresh all version pins (digests, Claude
   Code, Composer) with automatic rollback.
 - `DECISIONS.md` — records the security/architecture decisions; update it

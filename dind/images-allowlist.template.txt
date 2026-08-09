@@ -4,7 +4,7 @@
 #
 # This file is the tracked template. The dind guard uses the LOCAL,
 # gitignored copy dind/images-allowlist.txt, created from this template on
-# first `make` run. After editing the local copy: make restart
+# first `make` run. After editing the local copy: make reload-images
 #
 # Keep this list MINIMAL — every image is code the sandbox will execute.
 # Note: base images of nested `docker build`s are pulled daemon-internally

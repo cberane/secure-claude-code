@@ -75,7 +75,7 @@ asking questions (auto mode).
   start (uid-mapping-proof under podman keep-id), and the tmpfs volume
   evaporates when the stack stops. Accepted risk: squid exits fatally if the
   log becomes unwritable (a full 16m tmpfs needs ~100k denial lines);
-  `make restart` recovers.
+  `make reload-egress` recovers.
 - **`allowlist.txt` is local, `allowlist.template.txt` is tracked.** The
   live allowlist diverges per machine/developer; make copies the template
   once (file target, never overwritten afterwards) so local additions don't

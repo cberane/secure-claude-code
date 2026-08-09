@@ -14,6 +14,12 @@ export ENGINE
 ifneq (,$(findstring docker,$(TOOLCHAINS)))
 export COMPOSE_PROFILES=docker
 endif
+
+# Every profile that can hold running containers. Teardown must not depend
+# on the CURRENT .env: a profile-disabled service is not an orphan, so
+# `down --remove-orphans` would leave the dind sidecars running forever
+# once "docker" is dropped from TOOLCHAINS.
+ALL_PROFILES = docker
 ifeq ($(ENGINE),podman)
 # Explicit -f list disables compose's auto-loading, so the local override
 # (if present) must be appended by hand — last file wins on conflicts.
@@ -26,8 +32,26 @@ else
 COMPOSE = $(ENGINE) compose
 endif
 
-.PHONY: help build up down restart shell claude yolo doctor keygen \
-        rotate-signing-key install-hooks prune clean distclean
+# Teardown variant: sees every profile, so nothing is left behind.
+COMPOSE_ALL = COMPOSE_PROFILES=$(ALL_PROFILES) $(COMPOSE)
+
+# Docker client talking to the NESTED daemon, from the host. Its images,
+# containers and build cache live inside the dind-storage volume and are
+# invisible to the host engine's own `system df`. Resolves the container id
+# via compose, so it works with any project/container naming.
+DIND_EXEC = cid=$$($(COMPOSE_ALL) ps -q dind-daemon 2>/dev/null); \
+            [ -n "$$cid" ] || { echo "dind sidecar is not running (TOOLCHAINS must contain 'docker'; then: make up)"; exit 1; }; \
+            $(ENGINE) exec "$$cid" docker -H tcp://127.0.0.1:2375
+
+# Printed before anything that kills a running agent session.
+WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; then \
+                   echo "WARNING: an interactive session (claude-session) is running and will be killed."; \
+               fi
+
+.PHONY: help build up down stop restart shell claude yolo doctor keygen \
+        rotate-signing-key install-hooks prune prune-build prune-dind \
+        clean clean-dind \
+        distclean reload-egress reload-images reload-ingress ps logs denied df
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
@@ -49,10 +73,15 @@ build: egress/allowlist.txt dind/images-allowlist.txt ## Build the sandbox image
 up: keygen egress/allowlist.txt dind/images-allowlist.txt ## Start the sandbox in the background
 	$(COMPOSE) up -d
 
-down: ## Stop the sandbox
-	$(COMPOSE) down --remove-orphans
+down: ## Stop the sandbox (incl. dind sidecars and the interactive session)
+	$(WARN_SESSION)
+	$(COMPOSE_ALL) down --remove-orphans
 
-restart: down up ## Restart (required after key rotation)
+stop: ## Stop containers but keep them (gentler than down; no removal)
+	$(WARN_SESSION)
+	$(COMPOSE_ALL) stop
+
+restart: down up ## Full restart — also drops the dind sidecar and with it every nested container
 
 shell: keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
 	@scripts/check-key-age.sh --context session || true
@@ -65,6 +94,25 @@ claude: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code
 yolo: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	@scripts/check-key-age.sh --context session || true
 	$(COMPOSE) run --rm --name claude-session claude-code claude --dangerously-skip-permissions
+
+# --- surgical reloads ------------------------------------------------------
+# Apply a policy change WITHOUT tearing the sandbox down. `make restart`
+# stops the dind sidecar too, which kills every nested container (Sail
+# databases, mailpit, ...) — far too blunt for a one-line allowlist edit.
+
+reload-egress: egress/allowlist.txt ## Apply an egress allowlist edit (rebuilds only the proxy)
+	$(COMPOSE) build egress-proxy
+	$(COMPOSE) up -d --no-deps egress-proxy
+	@echo "egress-proxy reloaded — running sessions kept; its denial log starts empty again."
+
+reload-images: dind/images-allowlist.txt ## Apply a dind image-allowlist edit (recreates only the guard)
+	$(COMPOSE_ALL) up -d --no-deps --force-recreate dind-guard
+	@echo "dind-guard reloaded — the daemon and its containers kept running."
+
+reload-ingress: ## Apply an ingress port/config change (recreates only the ingress)
+	@$(COMPOSE) config --services | grep -qx ingress \
+	    || { echo "no 'ingress' service — enable it in docker-compose.override.yml (see docker-compose.override.example.yml)"; exit 1; }
+	$(COMPOSE) up -d --no-deps ingress
 
 keygen: ## Ensure the signing key exists (idempotent, host-side)
 	@scripts/ensure-signing-key.sh
@@ -79,11 +127,47 @@ install-hooks: ## Install the secret-blocking pre-commit hook into THIS repo
 	install -m 0755 security/pre-commit .git/hooks/pre-commit
 	@echo "Installed security/pre-commit -> .git/hooks/pre-commit"
 
+ps: ## Show sandbox containers — outer AND the ones nested inside dind
+	@$(COMPOSE_ALL) ps
+	@cid=$$($(COMPOSE_ALL) ps -q dind-daemon 2>/dev/null); \
+	 if [ -n "$$cid" ]; then \
+	     echo; echo "=== nested inside dind (invisible to the host's docker ps) ==="; \
+	     $(ENGINE) exec "$$cid" docker -H tcp://127.0.0.1:2375 ps -a; \
+	 fi
+
+logs: ## Follow the sandbox logs (proxy denials, dind, ingress)
+	$(COMPOSE_ALL) logs -f --tail=100
+
+denied: ## List domains the egress proxy denied since its last restart
+	@$(COMPOSE) run --rm -T claude-code blocked-domains
+
+df: ## Show disk usage of the host engine AND of the nested dind daemon
+	@echo "=== host engine ==="
+	@$(ENGINE) system df
+	@cid=$$($(COMPOSE_ALL) ps -q dind-daemon 2>/dev/null); \
+	 if [ -n "$$cid" ]; then \
+	     echo; echo "=== dind sidecar (all of it inside the dind-storage volume) ==="; \
+	     $(ENGINE) exec "$$cid" docker -H tcp://127.0.0.1:2375 system df; \
+	 fi
+
 prune: ## Reclaim disk space from dangling images (safe: untagged layers only)
 	$(ENGINE) image prune -f
 
-clean: ## Remove containers and locally built images (keeps volumes & secrets)
-	$(COMPOSE) down --remove-orphans --rmi local
+prune-build: ## Reclaim the host build cache (safe; only makes the next build slower)
+	$(ENGINE) builder prune -f
 
-distclean: ## Also remove the claude-config volume (logs you out of Claude)
-	$(COMPOSE) down --remove-orphans --rmi local --volumes
+prune-dind: ## Reclaim disk INSIDE dind (stopped containers, dangling images, build cache)
+	@$(DIND_EXEC) system prune -f
+
+clean: ## Remove containers and locally built images (keeps volumes & secrets)
+	$(WARN_SESSION)
+	$(COMPOSE_ALL) down --remove-orphans --rmi local
+
+clean-dind: ## Drop the dind image/layer storage (keeps your Claude login)
+	$(WARN_SESSION)
+	$(COMPOSE_ALL) rm -sf dind-daemon dind-guard
+	$(ENGINE) volume rm claude-sandbox_dind-storage
+
+distclean: ## Also remove ALL volumes (logs you out of Claude, drops dind storage)
+	$(WARN_SESSION)
+	$(COMPOSE_ALL) down --remove-orphans --rmi local --volumes
