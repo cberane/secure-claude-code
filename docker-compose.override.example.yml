@@ -22,10 +22,17 @@ services: {}
 #   # Host ingress: reach a sandbox dev server at http://localhost:8080.
 #   # Inbound-only (no outbound path for the sandbox); target logic in
 #   # ingress/haproxy.cfg (interactive session first, Sail app as backup).
+#   # The further ports reach services published inside dind (vite, postgres,
+#   # mailpit). To add one, bind it in ingress/haproxy.cfg AND list it here —
+#   # and keep the "127.0.0.1:" prefix, or the sandbox's services end up on
+#   # your LAN.
 #   ingress:
 #     image: haproxy:3.2-alpine@sha256:79799e8b2977e60802774fa53d29e6b54e045402cdd8a8b9fe43923e7095a047
 #     ports:
 #       - "127.0.0.1:8080:8080"
+#       - "127.0.0.1:5173:5173"
+#       - "127.0.0.1:5432:5432"
+#       - "127.0.0.1:8025:8025"
 #     networks: [sandbox, ingress]
 #     read_only: true
 #     security_opt: [no-new-privileges:true]

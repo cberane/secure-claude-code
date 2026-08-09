@@ -65,7 +65,11 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
 - To let the user open a dev server in their host browser: bind it to
   `0.0.0.0:8080` (in this container, or published on 8080 inside dind,
   e.g. Sail with `APP_PORT=8080`) — the host may reach it at
-  `http://localhost:8080` if the ingress override is enabled. Containers
+  `http://localhost:8080` if the ingress override is enabled. Services
+  published inside dind on 8025 (mailpit), 5432 (postgres) and 5173
+  (vite) are reachable the same way, so point the user at
+  `http://localhost:8025` for mail instead of inspecting mailboxes
+  yourself. Containers
   nested inside dind have no DNS; they reach the egress proxy by the IP
   the docker client injects automatically — do not debug nested DNS.
 - If the pre-commit hook reports the signing key as too old, stop and ask

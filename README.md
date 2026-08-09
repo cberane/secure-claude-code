@@ -218,7 +218,16 @@ Differences from Docker:
     (`docker-compose.override.example.yml`) to reach a sandbox dev
     server at `http://localhost:8080` — inbound-only; it forwards to the
     interactive session (`claude-session:8080`) or, as backup, to an app
-    published inside dind (`dind:8080`).
+    published inside dind (`dind:8080`). Selected service ports of the
+    nested stack come along: 8025 (mailpit UI), 5432 (postgres, for a
+    host DB client) and 5173 (vite). Every bind stays on `127.0.0.1` —
+    never publish on `0.0.0.0`, that would put the sandbox's services on
+    your LAN. Note that a host process can then reach the nested
+    database with whatever credentials the stack uses; that is the same
+    exposure class as the 8080 publication, limited to loopback. To add
+    a further port, bind it in `ingress/haproxy.cfg`, list it under the
+    override's `ports:` — and make sure `dind/haproxy.cfg` (`listen
+    app_ports`) forwards it too.
   - **Image pull control:** the sandbox talks to dind only through a
     filtering guard (`dind-guard`) — pulls are limited to images matching
     `dind/images-allowlist.txt` (local, from the tracked template;
