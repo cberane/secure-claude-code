@@ -1,4 +1,4 @@
-# Domains appended automatically when BUILD_TARGET=dev-php.
+# Domains appended automatically when TOOLCHAINS contains "php".
 # Composer metadata:
 packagist.org
 repo.packagist.org

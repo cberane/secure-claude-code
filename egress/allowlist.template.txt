@@ -39,3 +39,23 @@ statsig.com
 # editing the list enables/disables them on the next
 # `make reload-egress`. Add entries below only for needs beyond
 # the built-in toolchains.
+
+# --- Laravel Sail (TOOLCHAINS=php,docker) ------------------------------
+# Building Sail's app image inside the dind sidecar needs these; each one
+# was surfaced by `blocked-domains` on a real run. They are NOT part of the
+# php toolchain fragment on purpose: they serve one specific application
+# stack, not PHP itself, and would otherwise widen every php user's
+# allowlist. Uncomment only what your build actually stops on.
+#archive.ubuntu.com
+#security.ubuntu.com
+#ppa.launchpadcontent.net
+#keyserver.ubuntu.com
+#deb.nodesource.com
+#repo.yarnpkg.com
+#apt.postgresql.org
+# PGDG's signing key is served from the website, not the apt host:
+#www.postgresql.org
+# Bunny Fonts, referenced by Laravel's default Blade layouts. Only needed
+# for SERVER-side fetches (asset build, tests) — fonts requested by your
+# host browser never pass through this proxy.
+#fonts.bunny.net
