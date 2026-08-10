@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # GitHub Actions used in .github/workflows/ (actions/checkout, ...).
+  # The clear win: no other mechanism keeps these current, and bumping a
+  # pinned action is low-risk. Grouped so related bumps arrive as one PR.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+# NOT tracked here, on purpose:
+#
+# * The shellcheck/hadolint images in lint.yml are invoked with `docker
+#   run …:vX.Y` inside shell steps, not as Dockerfile FROM lines or
+#   `uses:` actions — Dependabot cannot see them. Bump them by editing
+#   the pinned tag in .github/workflows/lint.yml (kept in sync with what
+#   you lint locally).
+#
+# * Base-image digests (Dockerfile NODE_IMAGE, egress/Dockerfile FROM) and
+#   the compose image pins are owned by the `update-image` skill, which
+#   refreshes every pin together and gates the change on `make doctor`
+#   with automatic rollback. A Dependabot `docker` ecosystem would open
+#   digest-bump PRs that bypass that verification, so it is deliberately
+#   left off. If you ever prefer Dependabot to drive image pins, add a
+#   `package-ecosystem: docker` block — but keep running the sandbox
+#   through `make doctor` before merging such a PR.
