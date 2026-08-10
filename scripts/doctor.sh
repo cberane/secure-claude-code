@@ -112,10 +112,10 @@ if [ "${1:-}" = "--host" ]; then
 
     echo
     if [ "$container_rc" -eq 0 ] && [ "$FAIL" -eq 0 ]; then
-        printf "${GREEN}doctor: all host and container checks passed.${RESET}\n"
+        printf '%bdoctor: all host and container checks passed.%b\n' "$GREEN" "$RESET"
         exit 0
     fi
-    printf "${RED}doctor: FAILURES detected (container rc=%s, host fails=%s).${RESET}\n" "$container_rc" "$FAIL"
+    printf '%bdoctor: FAILURES detected (container rc=%s, host fails=%s).%b\n' "$RED" "$container_rc" "$FAIL" "$RESET"
     exit 1
 fi
 

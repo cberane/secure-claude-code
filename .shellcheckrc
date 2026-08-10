@@ -1,0 +1,10 @@
+# Project-wide shellcheck policy (CI runs at default severity).
+#
+# SC2319/SC2181: doctor.sh's `report N $? "..."` idiom deliberately captures
+# the exit code of the immediately preceding compound test — the pattern is
+# used consistently and each site is covered by the end-to-end checks
+# themselves. Rewriting ~15 sites for style would risk the test suite for
+# zero behavioral gain.
+# SC2164: every `cd` in these scripts targets a directory created two lines
+# earlier under `set -e`; a failed cd aborts the script either way.
+disable=SC2319,SC2181,SC2164

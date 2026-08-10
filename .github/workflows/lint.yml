@@ -1,0 +1,66 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck (policy in .shellcheckrc)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q shellcheck
+          shellcheck scripts/*.sh egress/entrypoint.sh tests/make-fixtures.sh \
+                     git-hooks/commit-msg git-hooks/pre-commit security/pre-commit
+
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: hadolint (policy in .hadolint.yaml)
+        run: |
+          docker run --rm -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" \
+            -i hadolint/hadolint < Dockerfile
+          docker run --rm -v "$PWD/.hadolint.yaml:/.config/hadolint.yaml:ro" \
+            -i hadolint/hadolint < egress/Dockerfile
+
+  compose-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: validate compose files with a synthetic .env
+        run: |
+          printf 'PROJECTS_DIR=%s\nUID=1000\nGID=1000\n' "$PWD" > .env
+          cp egress/allowlist.template.txt egress/allowlist.txt
+          cp dind/images-allowlist.template.txt dind/images-allowlist.txt
+          docker compose config -q
+          # docker profile (dind sidecars) must stay valid too
+          COMPOSE_PROFILES=docker docker compose config -q
+          # the tracked override example must merge cleanly when copied
+          cp docker-compose.override.example.yml docker-compose.override.yml
+          docker compose config -q
+
+  markdown-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: check relative links in markdown resolve
+        run: |
+          fail=0
+          while IFS=: read -r file link; do
+            target="${link%%#*}"
+            [ -z "$target" ] && continue                       # pure anchor
+            case "$target" in http*|mailto:*) continue ;; esac # external
+            if [ ! -e "$(dirname "$file")/$target" ]; then
+              echo "BROKEN: $file -> $link"
+              fail=1
+            fi
+          done < <(grep -RonE '\]\(([^)#][^):]*)\)' --include='*.md' . \
+                   | sed -E 's/^([^:]+):[0-9]+:\]\((.*)\)$/\1:\2/')
+          exit $fail

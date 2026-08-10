@@ -1,0 +1,15 @@
+# Project hadolint policy (CI fails on anything not listed here).
+ignored:
+  # Deliberate decision, documented in DECISIONS.md ("apt packages are not
+  # individually version-pinned"): the digest-pinned base image pins the
+  # package universe; per-deb pins break on every point release.
+  - DL3008
+  # uid 1000 is not a "high UID"; -l would also skip lastlog on rotation.
+  - DL3046
+  # Pipes in RUN steps either guard their failing half explicitly (see the
+  # allowlist merge in egress/Dockerfile) or tolerate partial output;
+  # switching SHELL to add pipefail is a behavior change we don't take
+  # for a linter.
+  - DL4006
+  # `USER dev` / `USER proxy` are created in the same Dockerfile.
+  - DL3066
