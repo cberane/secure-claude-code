@@ -89,6 +89,7 @@ exact command. Run it, tell the agent to continue.
 | [docs/architecture.md](docs/architecture.md) | Threat model, trust boundaries, what doctor proves |
 | [docs/setup.md](docs/setup.md) | Prerequisites, `.env` reference, authentication, local overrides |
 | [docs/workflow.md](docs/workflow.md) | Daily workflow, HOST ACTION REQUIRED protocol, reload targets, visibility |
+| [docs/egress.md](docs/egress.md) | The allowlist proxy, common pitfalls, and learning mode for research |
 | [docs/signing.md](docs/signing.md) | Commit signing, key rotation, the exfiltration trade-off |
 | [docs/toolchains.md](docs/toolchains.md) | php/python/docker toolchains, dind, image-pull control, host ingress |
 | [docs/podman.md](docs/podman.md) | Rootless podman differences |

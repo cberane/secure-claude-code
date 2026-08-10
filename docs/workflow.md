@@ -19,14 +19,11 @@ box appears if you try a network git command yourself in the container
 shell.
 
 **Blocked egress:** when a request is denied by the proxy (403), the agent
-runs `blocked-domains`, which lists every domain denied since the last
-proxy restart in the same kind of box. Review the list, append only the
-genuinely needed domains to `egress/allowlist.txt`, then
-`make reload-egress`. Add domains sparingly — the security model depends
-on a narrow allowlist (see the
-[exfiltration trade-off](signing.md#signing-key-exfiltration-trade-off)),
-and never add git hosts. `make denied` prints the same report from the
-host.
+runs `blocked-domains` and prints the same kind of box listing the denied
+domains. You review them, add only what's needed to `egress/allowlist.txt`,
+and `make reload-egress`. The full model — how the allowlist is built,
+common pitfalls, and **learning mode** for research tasks — is in
+[egress.md](egress.md).
 
 ## Applying policy changes without a restart
 
@@ -40,49 +37,8 @@ edits there are surgical targets:
 | `dind/images-allowlist.txt` | `make reload-images` | only the guard |
 | `ingress/haproxy.cfg` / override ports | `make reload-ingress` | only the ingress |
 
-A running session survives all three.
-
-## Learning mode: building an allowlist for research tasks
-
-For a broad research task, iterating deny → add → retry through
-`blocked-domains` is too slow — dozens of unknown domains, one round trip
-each. Learning mode inverts the loop: **one open pass that logs
-everything, then lock down.**
-
-```sh
-make learn        # egress OPEN (logged); LAN + git hosts still denied
-make claude       # fresh session — runs WITHOUT the signing key
-# ... run the research task ...
-make learned      # distilled report: hits per domain, wildcard candidates,
-                  # paste-ready allowlist block on stdout
-# curate, append the needed domains to egress/allowlist.txt, then:
-make learn-off    # allowlist enforced again (rebakes the proxy)
-# rerun the task under enforcement — blocked-domains catches stragglers
-make doctor       # confirm the posture is green again
-```
-
-What learning mode changes, and what it refuses to change:
-
-- The proxy allows any **public** host on 80/443 and logs every contact.
-  The LAN deny and the git-host deny (`egress/git-hosts-deny.txt`) stay —
-  GitHub's read endpoints are open like everything else, the push/pull
-  hosts are not.
-- **The signing key is removed from sessions** (commits are unsigned).
-  Open egress is an exfiltration channel, and the key mount is only
-  acceptable without one (see
-  [signing.md](signing.md#signing-key-exfiltration-trade-off)). The
-  entrypoint refuses to start a learning session that somehow still has
-  the key. Sessions started *before* `make learn` keep their key — close
-  them.
-- `make doctor` stays **red** while the mode is active, by design: an
-  open egress must never produce a passing doctor.
-- Remaining exposure while active: the session's Anthropic token and the
-  workspace contents could leave through the open proxy. Pair learning
-  mode with the minimal environment (no toolchains) and never with a
-  secret-bearing project.
-
-Learning mode is a capture instrument, not a permanent state — enter,
-capture, distill, leave.
+A running session survives all three. Editing the egress allowlist is the
+common case — see [egress.md](egress.md).
 
 ## Visibility
 

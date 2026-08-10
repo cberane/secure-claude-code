@@ -157,6 +157,7 @@ reload-ingress: ## Apply an ingress port/config change (recreates only the ingre
 # active, and sessions run WITHOUT the signing key (see docs/workflow.md).
 
 learn: preflight ## Enter egress learning mode (open egress, logged; signing key removed)
+	@scripts/confirm-learn.sh
 	@touch .learning-mode
 	@$(MAKE) --no-print-directory EGRESS_MODE=learning _learn-apply
 	@echo
@@ -165,6 +166,7 @@ learn: preflight ## Enter egress learning mode (open egress, logged; signing key
 	@echo "    signing key; sessions started earlier still carry it: close them."
 	@echo "  * Do not mount secret-bearing projects while this mode is on."
 	@echo "  * Distill with 'make learned'; leave with 'make learn-off'."
+	@echo "  * Full guide: docs/egress.md"
 
 learn-off: ## Leave learning mode and rebake the proxy with the (updated) allowlist
 	@rm -f .learning-mode

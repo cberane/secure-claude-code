@@ -46,7 +46,7 @@ inside the `dind-storage` volume and is invisible to a plain
 - **`https://…` fails with 403 / "CONNECT tunnel failed" inside the
   sandbox** — not broken, blocked by egress policy. Run `blocked-domains`
   in the container (or `make denied` on the host) and follow
-  [workflow.md](workflow.md).
+  [egress.md](egress.md).
 - **`docker pull` inside the sandbox fails with 403** — the image is not
   in `dind/images-allowlist.txt`. Add it, then `make reload-images`.
 - **Native npm module build fails in `/tmp`** — `/tmp` is `noexec` by

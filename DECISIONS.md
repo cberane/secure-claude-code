@@ -149,7 +149,13 @@ updated in the same PR.
   Anthropic token and workspace contents could be exfiltrated — bounded
   by keeping the mode short-lived and secret-free, which is documented,
   not enforced. Mode state is a gitignored host marker (`.learning-mode`)
-  so it can never be committed as a default.
+  so it can never be committed as a default. `make learn` additionally
+  gates on active toolchains: open egress plus composer/pip/npm (or a
+  privileged dind) is the sharpest edge in the design — a malicious
+  dependency would gain code execution AND an exfil channel — so it prints
+  the exposure and requires a typed `yes` (`LEARN_ACK=yes` for
+  automation), recommending the minimal env instead. Full intended use and
+  pitfalls: docs/egress.md.
 
 ## Git containment
 
