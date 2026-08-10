@@ -13,11 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pinned image, not the runner's apt package: the default ruleset
+      # differs between shellcheck versions (e.g. SC2002 is on by default
+      # in 0.9.0, optional in 0.10.0), so an unpinned version would drift
+      # the pass/fail line under us. Match this to what you lint locally.
       - name: shellcheck (policy in .shellcheckrc)
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q shellcheck
-          shellcheck scripts/*.sh egress/entrypoint.sh tests/make-fixtures.sh \
-                     git-hooks/commit-msg git-hooks/pre-commit security/pre-commit
+          docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:v0.10.0 \
+            scripts/*.sh egress/entrypoint.sh tests/make-fixtures.sh \
+            git-hooks/commit-msg git-hooks/pre-commit security/pre-commit
 
   hadolint:
     runs-on: ubuntu-latest

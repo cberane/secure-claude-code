@@ -194,7 +194,7 @@ for _ in 1 2 3; do
     [ -n "$code" ] && [ "$code" != "000" ] && break
 done
 [ -n "$code" ] && [ "$code" != "000" ]
-report 7 $? "https://api.anthropic.com is reachable via proxy" "http_code=$code $(cat "$WORK/curl7.err" 2>/dev/null | head -1)"
+report 7 $? "https://api.anthropic.com is reachable via proxy" "http_code=$code $(head -1 "$WORK/curl7.err" 2>/dev/null)"
 
 # --- helper: throwaway repo ----------------------------------------------
 new_repo() {
