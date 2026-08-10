@@ -4,10 +4,18 @@
 #   make ENGINE=podman claude
 # For podman rootless, additionally export PODMAN_USERNS=keep-id (see docs/podman.md).
 
+# NOTE: Make's include cannot parse everything compose can — values
+# containing '#' (truncated) or '$' (expanded) get mangled here. preflight
+# warns about them; simplest is to avoid both characters in .env values.
 -include .env
 
 ENGINE ?= docker
 export ENGINE
+
+# Rotation policy must reach host-side script runs too (check-key-age.sh in
+# shell/claude/yolo) — without the export, .env values would apply inside
+# the container but silently not on the host.
+export SIGNING_KEY_WARN_DAYS SIGNING_KEY_MAX_DAYS SIGNING_KEY_ENFORCE
 
 # The dind sidecar lives behind a compose profile so it only exists when
 # the docker toolchain is enabled in .env (TOOLCHAINS=...,docker).
@@ -69,13 +77,16 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
                    echo "WARNING: an interactive session (claude-session) is running and will be killed."; \
                fi
 
-.PHONY: help build up down stop restart shell claude yolo doctor keygen \
-        rotate-signing-key install-hooks prune prune-build prune-dind \
+.PHONY: help preflight build up down stop restart shell claude yolo doctor \
+        keygen rotate-signing-key install-hooks prune prune-build prune-dind \
         clean clean-dind \
         distclean reload-egress reload-images reload-ingress ps logs denied df
 
 help: ## Show this help
 	@grep -hE '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-20s %s\n", $$1, $$2}'
+
+preflight: ## Check host prerequisites (runs automatically before build/start)
+	@scripts/preflight.sh
 
 # Local egress allowlist: created from the template once, then never touched
 # by make again — local edits survive template updates from git.
@@ -88,10 +99,10 @@ dind/images-allowlist.txt:
 	cp dind/images-allowlist.template.txt $@
 	@echo "Created local $@ from template (gitignored — edit freely)."
 
-build: egress/allowlist.txt dind/images-allowlist.txt ## Build the sandbox images
+build: preflight egress/allowlist.txt dind/images-allowlist.txt ## Build the sandbox images
 	$(COMPOSE) build
 
-up: keygen egress/allowlist.txt dind/images-allowlist.txt ## Start the sandbox in the background
+up: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Start the sandbox in the background
 	$(COMPOSE) up -d
 
 down: ## Stop the sandbox (incl. dind sidecars and the interactive session)
@@ -104,13 +115,13 @@ stop: ## Stop containers but keep them (gentler than down; no removal)
 
 restart: down up ## Full restart — also drops the dind sidecar and with it every nested container
 
-shell: keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
+shell: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
 	$(call session,bash)
 
-claude: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
+claude: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
 	$(call session,claude)
 
-yolo: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
+yolo: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	$(call session,claude --dangerously-skip-permissions)
 
 # --- surgical reloads ------------------------------------------------------
@@ -138,7 +149,7 @@ keygen: ## Ensure the signing key exists (idempotent, host-side)
 rotate-signing-key: ## Rotate the signing key (interactive, host-side)
 	@scripts/rotate-signing-key.sh
 
-doctor: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run the full hardening self-test (host + container)
+doctor: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run the full hardening self-test (host + container)
 	@scripts/doctor.sh --host
 
 install-hooks: ## Install the secret-blocking pre-commit hook into THIS repo

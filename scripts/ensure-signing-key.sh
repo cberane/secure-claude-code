@@ -12,6 +12,13 @@ SIGNING_DIR="${SIGNING_DIR:-$repo_root/secrets/git-signing}"
 KEY="$SIGNING_DIR/signing_key"
 META="$SIGNING_DIR/key.meta"
 
+# jq writes key.meta AFTER the key is generated — checked up front so a
+# missing jq can never leave a key without its metadata behind.
+command -v jq >/dev/null 2>&1 || {
+    echo "ensure-signing-key: 'jq' is required on the host — install it, then rerun." >&2
+    exit 1
+}
+
 # Principal for allowed_signers: GIT_AUTHOR_EMAIL from .env, else a fallback.
 principal="${GIT_AUTHOR_EMAIL:-}"
 if [ -z "$principal" ] && [ -f "$repo_root/.env" ]; then
@@ -40,8 +47,28 @@ confirm_registration() {
 
 # --- already provisioned? -------------------------------------------------
 if [ -f "$KEY" ]; then
+    # Key without metadata = an earlier run died between keygen and meta
+    # write. Never silently accept it: age enforcement depends on
+    # created_at, and nothing downstream can repair the gap.
+    if [ ! -f "$META" ]; then
+        cat >&2 <<EOF
+ensure-signing-key: $KEY exists but key.meta is missing — an earlier
+provisioning run was interrupted (typically: jq was not installed).
+
+If the key was never registered at your forge (the usual case), delete the
+folder and rerun:
+
+    rm -r $SIGNING_DIR && make keygen
+
+If it IS registered, recreate the metadata instead:
+
+    jq -n --arg c "\$(date -Is)" --arg f "\$(ssh-keygen -lf $KEY.pub | awk '{print \$2}')" \\
+        '{created_at:\$c, fingerprint:\$f, registered_at:null, rotated_from:null}' > $META
+EOF
+        exit 1
+    fi
     # Key exists. Stay silent — unless registration is still pending.
-    if [ -f "$META" ] && [ "$(jq -r '.registered_at' "$META" 2>/dev/null)" = "null" ]; then
+    if [ "$(jq -r '.registered_at' "$META" 2>/dev/null)" = "null" ]; then
         echo "Signing key exists but is not yet registered at your forge."
         echo
         echo "  Public key (add as SIGNING key, NOT authentication key):"

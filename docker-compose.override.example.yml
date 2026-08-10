@@ -12,20 +12,17 @@
 
 services: {}
 
-# --- examples (move under `services:` and uncomment) -----------------------
+# --- Example 1: host ingress ----------------------------------------------
+# Reach a sandbox dev server at http://localhost:8080, plus selected
+# services published inside dind (vite, postgres, mailpit UI). Inbound-only
+# (no outbound path for the sandbox); target logic in ingress/haproxy.cfg.
+# To expose another port, bind it there AND list it here. Keep the
+# "127.0.0.1:" prefix — publishing on 0.0.0.0 would put the sandbox's
+# services on your LAN.
+#
+# Replace the `services: {}` line above with this block:
 #
 # services:
-#   claude-code:
-#     # Language toolchains belong in .env (TOOLCHAINS=php,python), not
-#     # here — the proxy allowlist and doctor follow that variable.
-#
-#   # Host ingress: reach a sandbox dev server at http://localhost:8080.
-#   # Inbound-only (no outbound path for the sandbox); target logic in
-#   # ingress/haproxy.cfg (interactive session first, Sail app as backup).
-#   # The further ports reach services published inside dind (vite, postgres,
-#   # mailpit). To add one, bind it in ingress/haproxy.cfg AND list it here —
-#   # and keep the "127.0.0.1:" prefix, or the sandbox's services end up on
-#   # your LAN.
 #   ingress:
 #     image: haproxy:3.2-alpine@sha256:79799e8b2977e60802774fa53d29e6b54e045402cdd8a8b9fe43923e7095a047
 #     ports:
@@ -43,7 +40,16 @@ services: {}
 #       - ./ingress/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
 #
 # networks:
+#   # Non-internal net carrying only the host port binding.
 #   ingress: {}
+
+# --- Example 2: resource / mount tweaks for the sandbox -------------------
+# These belong under services.claude-code. Language toolchains do NOT go
+# here — set TOOLCHAINS in .env instead (the proxy allowlist and doctor
+# follow that variable).
+#
+# services:
+#   claude-code:
 #     # More memory for a heavy project:
 #     mem_limit: 8g
 #     # Opt-in custom seccomp profile (read security/seccomp.json first!):

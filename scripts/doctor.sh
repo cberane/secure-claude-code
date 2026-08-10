@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # doctor.sh — hardening self-test. Covers the 19 acceptance criteria, plus
-# per-dev-target function checks (20/21) when a toolchain target is built.
+# per-toolchain function checks (20-23) for each enabled toolchain.
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
 #                                Runs host-side checks 11 and 15, and executes
@@ -46,6 +46,14 @@ if [ "${1:-}" = "--host" ]; then
 
     ENGINE="${ENGINE:-$(sed -n 's/^ENGINE=//p' .env 2>/dev/null | tail -1)}"
     ENGINE="${ENGINE:-docker}"
+    # Direct `scripts/doctor.sh --host` must behave like `make doctor`:
+    # activate the dind profile when the docker toolchain is enabled, or
+    # checks 22/23 fail against sidecars compose never started.
+    if [ -z "${COMPOSE_PROFILES:-}" ]; then
+        case ",$(sed -n 's/^TOOLCHAINS=//p' .env 2>/dev/null | tail -1)," in
+            *,docker,*) export COMPOSE_PROFILES=docker ;;
+        esac
+    fi
     COMPOSE="$ENGINE compose"
     if [ "$ENGINE" = "podman" ]; then
         COMPOSE="$ENGINE compose -f docker-compose.yml -f compose.podman.yml"
@@ -58,9 +66,10 @@ if [ "${1:-}" = "--host" ]; then
         echo "doctor: .env is missing — copy .env.example to .env and set PROJECTS_DIR." >&2
         exit 1
     fi
-    PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1)"
+    # Tolerate quoted values — compose strips quotes, so must we.
+    PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")"
 
-    echo "=== Container-side checks (1-10, 12-14, 16-19, + enabled dev targets) ==="
+    echo "=== Container-side checks (1-10, 12-14, 16-19, + enabled toolchains) ==="
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
