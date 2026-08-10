@@ -19,8 +19,8 @@ sandbox.
 | Composer version + sha256 | `Dockerfile` | `ARG COMPOSER_VERSION=` / `ARG COMPOSER_SHA256=` |
 | Docker CLI version + sha256 | `Dockerfile` | `ARG DOCKER_CLI_VERSION=` / `ARG DOCKER_CLI_SHA256=` |
 | Compose plugin version + sha256 | `Dockerfile` | `ARG COMPOSE_PLUGIN_VERSION=` / `ARG COMPOSE_PLUGIN_SHA256=` |
-| `docker:29-dind-rootless@sha256:…` | `docker-compose.yml` | `dind` service `image:` |
-| `haproxy:3.2-alpine@sha256:…` | `docker-compose.yml` | `dind-guard` service `image:` |
+| `docker:29-dind-rootless@sha256:…` | `docker-compose.yml` | `dind-daemon` service `image:` |
+| `haproxy:3.2-alpine@sha256:…` | `docker-compose.yml` + `docker-compose.override.example.yml` | `dind-guard` service `image:` AND the `ingress` example (same digest — always bump BOTH) |
 | `debian:trixie-slim@sha256:…` | `egress/Dockerfile` | `FROM` line |
 
 ## Step 1 — Preconditions
@@ -114,7 +114,7 @@ still builds: `docker build --build-arg TOOLCHAINS=php,python .`
 Both must succeed:
 
 ```sh
-make doctor    # ALL checks green, exit code 0 (19 core + any dev-target checks)
+make doctor    # ALL checks green, exit code 0 (19 core + any toolchain checks)
 ```
 
 ```sh

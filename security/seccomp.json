@@ -3,7 +3,7 @@
     "OPTIONAL seccomp profile — NOT enabled by default, and that is deliberate:",
     "the Docker/Podman default seccomp profile is well maintained and already",
     "blocks the dangerous syscalls. Only use a custom profile if you have a",
-    "concrete reason ('Default-Profil nicht ohne Not verlassen').",
+    "concrete reason (do not leave the default profile without need).",
     "",
     "This example is a DENY-list layered on an allow-all default. That makes it",
     "strictly WEAKER than the runtime default profile on its own — its purpose",

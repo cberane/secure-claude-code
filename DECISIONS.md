@@ -1,7 +1,9 @@
 # Decisions & Assumptions
 
-All trade-offs and assumptions made while building this setup, in lieu of
-asking questions (auto mode).
+ADR-style log of the trade-offs behind this setup: what was chosen, what
+was rejected, and which risks are accepted with what compensating
+controls. If a change to the repo invalidates an entry here, the entry is
+updated in the same PR.
 
 ## Base image & toolchain
 
@@ -86,7 +88,7 @@ asking questions (auto mode).
   with the local base list (deduplicated; unknown names fail the build).
   Editing the list in `.env` therefore enables AND disables toolchain
   domains on the next build — no stale registry access lingers after a
-  toolchain is dropped. Doctor checks 20-22 are keyed on the same variable
+  toolchain is dropped. Doctor checks 20-23 are keyed on the same variable
   and assert each enabled toolchain + its registry actually work.
 - **Docker-in-docker is a rootless sidecar, never the host socket.**
   Mounting `/var/run/docker.sock` is root-equivalent on the host and would
@@ -143,8 +145,8 @@ asking questions (auto mode).
 
 ## Signing
 
-- **SSH signing over GPG** (mandated, and the right call): no keyring, no
-  agent, one file, `allowed_signers` gives explicit validity windows.
+- **SSH signing over GPG:** no keyring, no agent, one file, and
+  `allowed_signers` gives explicit validity windows.
 - **Principal in `allowed_signers`** is `GIT_AUTHOR_EMAIL` from `.env`
   (fallback `$USER@hostname`). Git matches the signing key, not the
   principal string, for "Good signature" — the principal mainly aids
@@ -178,10 +180,10 @@ placed in `docs/signing.md` and `egress/allowlist.txt`.
 
 ## Scope
 
-- **No `.devcontainer/`** — allowed as optional by the brief, omitted:
-  Makefile + compose already cover the workflow, and a devcontainer would
-  duplicate the security-relevant runtime flags in a second place that could
-  silently drift.
+- **No `.devcontainer/`** — deliberately omitted: Makefile + compose
+  already cover the workflow, and a devcontainer would duplicate the
+  security-relevant runtime flags in a second place that could silently
+  drift.
 - **`make doctor` requires a configured `.env`** (needs `PROJECTS_DIR`); it
   exits with instructions otherwise.
 - **Doctor's check 15 runs against a temp directory** so the production
