@@ -20,7 +20,9 @@ build/start target — but you can run it alone first.
 ```sh
 cp .env.example .env      # then edit — see the reference below
 make build
-make claude               # or: make yolo  (--dangerously-skip-permissions)
+make claude               # agent with permission prompts
+# make yolo               # agent with full autonomy (--dangerously-skip-permissions)
+# make shell              # plain bash inside the sandbox, no agent
 ```
 
 Contributors to this repo also run `make install-hooks` once (commit-msg
