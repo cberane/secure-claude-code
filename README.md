@@ -1,9 +1,20 @@
 # Hardened Claude Code Sandbox
 
-Run Claude Code in YOLO mode (`--dangerously-skip-permissions`) inside a
-container where the **maximum possible damage is the loss of the mounted
-project directory** — nothing beyond that.¹ Projects live in git and are
-pushed from the host, so even that damage is recoverable.
+## What is this for?
+
+Claude Code does its best work when it can act autonomously — edit, run,
+install, test — without a permission prompt before every step: YOLO mode
+(`--dangerously-skip-permissions`). But an agent with free rein on your
+machine has everything you have: SSH keys, cloud tokens, browser sessions,
+your home directory, your LAN. One mistake, or one prompt injection hidden
+in a README, package, or web page the agent reads, turns that into
+exfiltration or worse.
+
+This sandbox exists so you can grant that autonomy anyway. The agent runs
+in a container built so the worst possible outcome is bounded and known:
+the **maximum possible damage is the loss of the one mounted project
+directory** — nothing beyond that.¹ Projects live in git and are pushed
+from the host, so even that damage is recoverable.
 
 The container has no credentials, no host network, no docker socket, a
 read-only rootfs, and exactly one way out: an allowlist egress proxy. Git
