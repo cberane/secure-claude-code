@@ -30,6 +30,12 @@ ENGINE="${ENGINE:-$(sed -n 's/^ENGINE=//p' .env 2>/dev/null | tail -1)}"
 ENGINE="${ENGINE:-docker}"
 if ! command -v "$ENGINE" >/dev/null 2>&1; then
     err "container engine '$ENGINE' not found (set ENGINE in .env: docker | podman)."
+elif [ "$ENGINE" = "podman" ] \
+    && case ",$(sed -n 's/^TOOLCHAINS=//p' .env 2>/dev/null | tail -1)," in *,docker,*) true ;; *) false ;; esac; then
+    # Verified empirically: rootlesskit inside rootless podman cannot set up
+    # its nested uid map ("newuidmap: write to uid_map failed"), so the
+    # dind-rootless sidecar never starts. See docs/podman.md.
+    err "the 'docker' toolchain requires ENGINE=docker — rootless dind cannot start inside rootless podman (nested user namespaces). Drop 'docker' from TOOLCHAINS or switch ENGINE."
 elif ! "$ENGINE" compose version >/dev/null 2>&1; then
     err "'$ENGINE compose' does not work — install the compose plugin (docker-compose-plugin / podman-compose provider)."
 else

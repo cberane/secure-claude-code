@@ -26,3 +26,23 @@ Differences from Docker:
   suffixes in `docker-compose.yml` (`.../workspace:rw,Z` and `...:ro,Z`),
   or mounts will be denied by SELinux.
 - Named volumes and `internal:` networks behave the same.
+
+## Not supported: the `docker` toolchain
+
+`TOOLCHAINS=...,docker` requires `ENGINE=docker`; `make preflight` rejects
+the combination. The dind sidecar is the rootless dind image, and its
+rootlesskit needs to create a *nested* user namespace with a multi-range
+uid map — inside a rootless podman container that setuid `newuidmap` call
+is denied by the kernel:
+
+```
+[rootlesskit:parent] error: failed to setup UID/GID map:
+newuidmap: write to uid_map failed: Operation not permitted
+```
+
+This is a structural limit of nested rootless user namespaces, not a
+configuration issue. A rootful-dind variant under podman's userns would be
+a possible future direction (host-side confinement would then come from
+podman instead of rootlesskit), but it changes the security reasoning in
+DECISIONS.md and is not implemented. The `php` and `python` toolchains and
+the core sandbox are unaffected.

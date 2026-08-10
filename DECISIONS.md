@@ -104,6 +104,12 @@ updated in the same PR.
   on the internal network (no TLS) — acceptable: same trust domain as the
   claude-code container itself. Off by default; dropping `docker` from
   `TOOLCHAINS` removes CLI, sidecar, and registry domains together.
+  Docker-engine only: under rootless podman, rootlesskit cannot create
+  its nested uid map (verified empirically — `newuidmap: write to
+  uid_map failed`), so preflight rejects `ENGINE=podman` with this
+  toolchain instead of letting the sidecar crash-loop. A rootful-dind
+  variant confined by podman's userns would be the path to lifting
+  this, with its own security analysis.
 - **The dind API is only reachable through a filtering guard.** The
   daemon lives on an isolated internal network (`dind-net`: daemon,
   guard, egress proxy — never claude-code), so the sandbox has no route

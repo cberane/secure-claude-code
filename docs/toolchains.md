@@ -29,6 +29,9 @@ Installs a pinned static docker CLI + compose plugin and starts a
 nested stacks like Laravel Sail (databases, mailpit, ...) run *inside* the
 sandbox boundary. The host Docker socket stays absent (doctor check 5).
 
+Requires `ENGINE=docker` — rootless dind cannot start inside rootless
+podman (nested user namespaces; see [podman.md](podman.md)).
+
 Key facts:
 
 - The sidecar is `privileged` but userns-confined (see
