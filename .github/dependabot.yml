@@ -1,8 +1,11 @@
 version: 2
 updates:
   # GitHub Actions used in .github/workflows/ (actions/checkout, ...).
-  # The clear win: no other mechanism keeps these current, and bumping a
-  # pinned action is low-risk. Grouped so related bumps arrive as one PR.
+  # Actions are pinned to a full commit SHA with the release as a trailing
+  # comment (uses: actions/checkout@<sha> # v7.0.1) — a tag is mutable, a
+  # SHA is not (GitHub's supply-chain hardening guidance). Dependabot
+  # preserves that style: it bumps the SHA and the comment together.
+  # Grouped so related bumps arrive as one PR.
   - package-ecosystem: github-actions
     directory: /
     schedule:
