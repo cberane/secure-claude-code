@@ -123,8 +123,8 @@ asking questions (auto mode).
   tracked example file): the native compose idiom for per-machine tweaks.
   Docker auto-loads the name; the podman path appends it to its explicit
   `-f` list (auto-loading is disabled once `-f` is used). Risk accepted:
-  overrides can weaken hardening — mitigated by the README's "run
-  `make doctor` after override changes" rule, not by tooling.
+  overrides can weaken hardening — mitigated by the "run `make doctor`
+  after override changes" rule (docs/setup.md), not by tooling.
 - **DNS-rebinding note:** the RFC1918 `dst` deny in squid protects the LAN
   even if an allowlisted domain resolves to a private address.
 
@@ -174,7 +174,7 @@ must be re-established after every reboot, plus another moving part in the
 Makefile. **Assessment:** under the current egress allowlist a *read* key
 has no exfiltration channel, so the simpler file mount wins. This trade-off
 **inverts** the moment the allowlist is widened to arbitrary hosts — warning
-placed in `README.md` and `egress/allowlist.txt`.
+placed in `docs/signing.md` and `egress/allowlist.txt`.
 
 ## Scope
 

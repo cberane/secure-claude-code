@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # git wrapper — shadows /usr/bin/git inside the container and blocks every
 # subcommand that talks to a remote. Committing stays local; pushing and
-# pulling are host-only operations by design (see README.md).
+# pulling are host-only operations by design (see docs/workflow.md).
 #
 # This is the first line of defense; the egress proxy (which allowlists no
 # git hosts) is the second.

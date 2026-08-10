@@ -15,7 +15,7 @@
 # is the second line of defense after the git wrapper.
 #
 # WARNING: widening this list also weakens the reasoning that makes the
-# read-only signing-key mount acceptable (see README.md, "Signing key
+# read-only signing-key mount acceptable (see docs/signing.md, "Signing key
 # exfiltration trade-off").
 
 # Anthropic — API and OAuth login

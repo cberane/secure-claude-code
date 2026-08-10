@@ -2,7 +2,7 @@
 #
 # ENGINE selects the container engine: docker (default) or podman.
 #   make ENGINE=podman claude
-# For podman rootless, additionally export PODMAN_USERNS=keep-id (see README).
+# For podman rootless, additionally export PODMAN_USERNS=keep-id (see docs/podman.md).
 
 -include .env
 

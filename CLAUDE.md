@@ -1,8 +1,8 @@
 # Development environment (HOST)
 
 This repo builds and maintains a hardened Claude Code sandbox. Sessions in
-this directory run on the **host** (WSL2), not inside the sandbox: Docker,
-full network access, and git remotes (`push`, `pull`, `fetch`) are all
+this directory run on the **host**, not inside the sandbox: Docker, full
+network access, and git remotes (`push`, `pull`, `fetch`) are all
 available and fine to use here.
 
 Do not confuse this file with `sandbox/CLAUDE.md` — that is the hardened
@@ -39,3 +39,6 @@ only *inside* the sandbox, never to this development environment.
   Code, Composer) with automatic rollback.
 - `DECISIONS.md` — records the security/architecture decisions; update it
   when a decision changes.
+- User docs live in `docs/` (one file per topic, indexed from README.md);
+  keep them in sync with behavior changes. Contribution/security policy:
+  `CONTRIBUTING.md`, `SECURITY.md`.
