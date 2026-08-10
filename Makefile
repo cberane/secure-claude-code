@@ -43,6 +43,27 @@ DIND_EXEC = cid=$$($(COMPOSE_ALL) ps -q dind-daemon 2>/dev/null); \
             [ -n "$$cid" ] || { echo "dind sidecar is not running (TOOLCHAINS must contain 'docker'; then: make up)"; exit 1; }; \
             $(ENGINE) exec "$$cid" docker -H tcp://127.0.0.1:2375
 
+# Start an interactive session container. It carries the stable name
+# claude-session so the host ingress can forward to it (ingress/haproxy.cfg).
+# A name belongs to exactly one container, so a SECOND parallel session must
+# start unnamed rather than fail — `make shell` next to a running `make yolo`
+# is a normal thing to want. A stale, non-running leftover of that name is
+# reclaimed instead.
+define session
+	@if [ -n "$$($(ENGINE) ps -aq -f name='^claude-session$$')" ] \
+	    && [ -z "$$($(ENGINE) ps -q  -f name='^claude-session$$')" ]; then \
+	        $(ENGINE) rm -f claude-session >/dev/null; \
+	fi
+	@scripts/check-key-age.sh --context session || true
+	@if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; then \
+	    echo "note: another session already holds the name 'claude-session'."; \
+	    echo "      starting this one unnamed — host ingress keeps targeting the first."; \
+	    $(COMPOSE) run --rm claude-code $(1); \
+	else \
+	    $(COMPOSE) run --rm --name claude-session claude-code $(1); \
+	fi
+endef
+
 # Printed before anything that kills a running agent session.
 WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; then \
                    echo "WARNING: an interactive session (claude-session) is running and will be killed."; \
@@ -84,16 +105,13 @@ stop: ## Stop containers but keep them (gentler than down; no removal)
 restart: down up ## Full restart — also drops the dind sidecar and with it every nested container
 
 shell: keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
-	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm --name claude-session claude-code bash
+	$(call session,bash)
 
 claude: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
-	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm --name claude-session claude-code claude
+	$(call session,claude)
 
 yolo: keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
-	@scripts/check-key-age.sh --context session || true
-	$(COMPOSE) run --rm --name claude-session claude-code claude --dangerously-skip-permissions
+	$(call session,claude --dangerously-skip-permissions)
 
 # --- surgical reloads ------------------------------------------------------
 # Apply a policy change WITHOUT tearing the sandbox down. `make restart`

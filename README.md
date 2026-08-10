@@ -226,7 +226,10 @@ Differences from Docker:
     (`docker-compose.override.example.yml`) to reach a sandbox dev
     server at `http://localhost:8080` — inbound-only; it forwards to the
     interactive session (`claude-session:8080`) or, as backup, to an app
-    published inside dind (`dind:8080`). Selected service ports of the
+    published inside dind (`dind:8080`). Only one container can carry that
+    name: the first session started claims it, and further parallel
+    sessions (`make shell` next to a running `make yolo`) run unnamed —
+    they work normally, they are just not the ingress target. Selected service ports of the
     nested stack come along: 8025 (mailpit UI), 5432 (postgres, for a
     host DB client) and 5173 (vite). Every bind stays on `127.0.0.1` —
     never publish on `0.0.0.0`, that would put the sandbox's services on
