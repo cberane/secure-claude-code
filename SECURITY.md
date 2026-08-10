@@ -39,6 +39,12 @@ their compensating controls:
   escape from it additionally requires a kernel/userns vulnerability.
 - The agent can destroy the mounted project directory. That is the
   accepted blast radius, not a bug.
+- **Egress learning mode** (`make learn`) deliberately suspends the
+  allowlist (LAN + git hosts stay denied, signing key is removed, doctor
+  stays red). While it is active, exfiltration of the session token or
+  workspace contents is possible by design — reports about learning mode
+  are in scope only if they break one of the invariants it *keeps*
+  (LAN deny, git-host deny, key removal, red doctor).
 
 A report that widens one of these into something worse (e.g. the buildkit
 gap reaching a non-allowlisted registry) IS in scope.

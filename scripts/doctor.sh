@@ -54,12 +54,15 @@ if [ "${1:-}" = "--host" ]; then
             *,docker,*) export COMPOSE_PROFILES=docker ;;
         esac
     fi
-    COMPOSE="$ENGINE compose"
-    if [ "$ENGINE" = "podman" ]; then
-        COMPOSE="$ENGINE compose -f docker-compose.yml -f compose.podman.yml"
-        if [ -f docker-compose.override.yml ]; then
-            COMPOSE="$COMPOSE -f docker-compose.override.yml"
-        fi
+    # Mirror the Makefile's compose file list exactly (incl. the learning
+    # overlay, or sessions doctor starts would carry the signing key into
+    # learning mode and be refused by the entrypoint).
+    COMPOSE="$ENGINE compose -f docker-compose.yml"
+    [ "$ENGINE" = "podman" ] && COMPOSE="$COMPOSE -f compose.podman.yml"
+    [ -f docker-compose.override.yml ] && COMPOSE="$COMPOSE -f docker-compose.override.yml"
+    if [ -e .learning-mode ]; then
+        export EGRESS_MODE=learning
+        COMPOSE="$COMPOSE -f compose.learning.yml"
     fi
 
     if [ ! -f .env ]; then
@@ -132,6 +135,15 @@ fi
 # CONTAINER MODE
 ########################################################################
 
+# Doctor asserts the HARDENED posture. Learning mode is deliberately
+# outside it — say so up front instead of leaving red checks unexplained,
+# and do NOT special-case them green: an open egress must never produce a
+# passing doctor.
+if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
+    printf "%bEGRESS LEARNING MODE ACTIVE — the hardened posture is NOT in effect.%b\n" "$RED" "$RESET"
+    printf "%bEgress and signing checks below WILL fail; run 'make learn-off' first for a meaningful result.%b\n\n" "$RED" "$RESET"
+fi
+
 WORK="$(mktemp -d /tmp/doctor.XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -161,9 +173,15 @@ report 4 $? "no SSH auth keys / PEM files in the container" "$found"
 report 5 $? "/var/run/docker.sock is absent"
 
 # --- 6: non-allowlisted egress blocked ------------------------------------
-curl -sS -m 15 -o /dev/null https://example.com 2>"$WORK/curl6.err"
-[ $? -ne 0 ]
-report 6 $? "https://example.com is blocked by the egress proxy"
+if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
+    # Deterministic failure: in learning mode the domain IS reachable (a
+    # transient upstream timeout could otherwise fake a pass under load).
+    report 6 1 "https://example.com is blocked by the egress proxy" "EGRESS_MODE=learning — allowlist not enforced"
+else
+    curl -sS -m 15 -o /dev/null https://example.com 2>"$WORK/curl6.err"
+    [ $? -ne 0 ]
+    report 6 $? "https://example.com is blocked by the egress proxy"
+fi
 
 # --- 7: api.anthropic.com reachable ---------------------------------------
 # Up to 3 attempts: under load, WSL2/NAT can time out individual upstream

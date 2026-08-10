@@ -23,6 +23,19 @@ if [ -d "$HOME/.ssh" ]; then
 fi
 
 # --- 3. signing key mount preflight ---------------------------------------
+# Learning mode (open egress) and the signing key are mutually exclusive:
+# the readable key is only acceptable while the allowlist leaves no
+# exfiltration channel (docs/signing.md). compose.learning.yml removes the
+# mount; refuse to start if the two are ever combined anyway.
+if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
+    [ ! -f "$SIGNING_DIR/signing_key" ] \
+        || die "EGRESS_MODE=learning but the signing key is mounted — start learning sessions via 'make learn' + make claude/yolo, never by setting the variable by hand."
+    echo "############################################################" >&2
+    echo "# EGRESS LEARNING MODE — open egress, everything logged.   #" >&2
+    echo "# No signing key in this session; commits are UNSIGNED.    #" >&2
+    echo "# Do not work with secret-bearing projects in this mode.   #" >&2
+    echo "############################################################" >&2
+else
 [ -d "$SIGNING_DIR" ] \
     || die "$SIGNING_DIR is missing. Run 'make keygen' on the HOST, then restart."
 [ -f "$SIGNING_DIR/signing_key" ] \
@@ -42,6 +55,7 @@ if touch "$SIGNING_DIR/.rwtest" 2>/dev/null; then
     rm -f "$SIGNING_DIR/.rwtest"
     die "$SIGNING_DIR is writable — it must be mounted read-only (:ro)"
 fi
+fi
 
 # --- 4. git configuration (global config lives on tmpfs) ------------------
 : "${GIT_CONFIG_GLOBAL:=/tmp/.gitconfig}"
@@ -50,11 +64,16 @@ rm -f "$GIT_CONFIG_GLOBAL"
 
 git config --global user.name  "${GIT_AUTHOR_NAME:-dev}"
 git config --global user.email "${GIT_AUTHOR_EMAIL:-dev@sandbox.invalid}"
-git config --global gpg.format ssh
-git config --global user.signingkey "$SIGNING_DIR/signing_key"
-git config --global commit.gpgsign true
-git config --global tag.gpgsign true
-git config --global gpg.ssh.allowedSignersFile "$SIGNING_DIR/allowed_signers"
+if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
+    git config --global commit.gpgsign false
+    git config --global tag.gpgsign false
+else
+    git config --global gpg.format ssh
+    git config --global user.signingkey "$SIGNING_DIR/signing_key"
+    git config --global commit.gpgsign true
+    git config --global tag.gpgsign true
+    git config --global gpg.ssh.allowedSignersFile "$SIGNING_DIR/allowed_signers"
+fi
 git config --global core.hooksPath /opt/git-hooks
 git config --global init.defaultBranch main
 git config --global safe.directory /workspace
@@ -68,6 +87,8 @@ if [ -d "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}" ]; then
 fi
 
 # --- 6. signing key age (warn only at session start) ----------------------
-check-key-age --context session || true
+if [ "${EGRESS_MODE:-allowlist}" != "learning" ]; then
+    check-key-age --context session || true
+fi
 
 exec "$@"

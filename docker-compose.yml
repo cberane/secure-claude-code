@@ -26,6 +26,10 @@ services:
     environment:
       # Lets doctor run the function checks matching the built toolchains.
       SANDBOX_TOOLCHAINS: ${TOOLCHAINS:-}
+      # allowlist (default) | learning — set via `make learn`, never by hand.
+      # In learning mode the entrypoint REFUSES to start with the signing
+      # key mounted (compose.learning.yml removes it).
+      EGRESS_MODE: ${EGRESS_MODE:-allowlist}
       # Docker CLI target: the dind-guard filter in front of the rootless
       # dind sidecar (docker toolchain + profile only; the variable is
       # inert when the CLI is not installed).
@@ -74,6 +78,10 @@ services:
         # The enabled toolchains drive which allowlist fragments the
         # proxy bakes in (egress/allowlist.d/).
         TOOLCHAINS: ${TOOLCHAINS:-}
+    environment:
+      # allowlist (default) | learning — the entrypoint selects the squid
+      # config accordingly. Toggled by `make learn` / `make learn-off`.
+      EGRESS_MODE: ${EGRESS_MODE:-allowlist}
     networks:
       sandbox:
       egress:

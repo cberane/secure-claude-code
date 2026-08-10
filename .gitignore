@@ -16,6 +16,9 @@ egress/allowlist.txt
 # Local, per-machine compose tweaks (see docker-compose.override.example.yml)
 docker-compose.override.yml
 
+# Egress learning-mode marker (make learn / make learn-off)
+.learning-mode
+
 # Local state — but project skills are shared and tracked
 .claude/*
 !.claude/skills/

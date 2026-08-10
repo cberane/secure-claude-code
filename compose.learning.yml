@@ -1,0 +1,14 @@
+# Learning-mode overlay — applied by the Makefile while `.learning-mode`
+# exists (make learn / make learn-off). NEVER add this file by hand.
+#
+# Removes the signing-key mount from sandbox sessions: the read-only key
+# is acceptable ONLY because the allowlist leaves no exfiltration channel
+# (docs/signing.md) — learning mode opens egress, so the key must leave.
+# `!override` replaces the whole volume list (needs compose >= 2.24,
+# checked by preflight); keep it in sync with docker-compose.yml.
+services:
+  claude-code:
+    volumes: !override
+      - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
+      - claude-config:/home/dev/.claude
+      - egress-logs:/var/log/egress:ro

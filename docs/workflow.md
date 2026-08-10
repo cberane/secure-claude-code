@@ -42,6 +42,48 @@ edits there are surgical targets:
 
 A running session survives all three.
 
+## Learning mode: building an allowlist for research tasks
+
+For a broad research task, iterating deny → add → retry through
+`blocked-domains` is too slow — dozens of unknown domains, one round trip
+each. Learning mode inverts the loop: **one open pass that logs
+everything, then lock down.**
+
+```sh
+make learn        # egress OPEN (logged); LAN + git hosts still denied
+make claude       # fresh session — runs WITHOUT the signing key
+# ... run the research task ...
+make learned      # distilled report: hits per domain, wildcard candidates,
+                  # paste-ready allowlist block on stdout
+# curate, append the needed domains to egress/allowlist.txt, then:
+make learn-off    # allowlist enforced again (rebakes the proxy)
+# rerun the task under enforcement — blocked-domains catches stragglers
+make doctor       # confirm the posture is green again
+```
+
+What learning mode changes, and what it refuses to change:
+
+- The proxy allows any **public** host on 80/443 and logs every contact.
+  The LAN deny and the git-host deny (`egress/git-hosts-deny.txt`) stay —
+  GitHub's read endpoints are open like everything else, the push/pull
+  hosts are not.
+- **The signing key is removed from sessions** (commits are unsigned).
+  Open egress is an exfiltration channel, and the key mount is only
+  acceptable without one (see
+  [signing.md](signing.md#signing-key-exfiltration-trade-off)). The
+  entrypoint refuses to start a learning session that somehow still has
+  the key. Sessions started *before* `make learn` keep their key — close
+  them.
+- `make doctor` stays **red** while the mode is active, by design: an
+  open egress must never produce a passing doctor.
+- Remaining exposure while active: the session's Anthropic token and the
+  workspace contents could leave through the open proxy. Pair learning
+  mode with the minimal environment (no toolchains) and never with a
+  secret-bearing project.
+
+Learning mode is a capture instrument, not a permanent state — enter,
+capture, distill, leave.
+
 ## Visibility
 
 - `make ps` — sandbox containers, outer **and** nested inside dind.

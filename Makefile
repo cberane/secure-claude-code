@@ -28,17 +28,24 @@ endif
 # `down --remove-orphans` would leave the dind sidecars running forever
 # once "docker" is dropped from TOOLCHAINS.
 ALL_PROFILES = docker
+
+# Compose file list, always explicit (identical to docker's auto-loading,
+# and required anyway for podman and for the learning overlay).
+COMPOSE_FILES = -f docker-compose.yml
 ifeq ($(ENGINE),podman)
-# Explicit -f list disables compose's auto-loading, so the local override
-# (if present) must be appended by hand — last file wins on conflicts.
-COMPOSE = $(ENGINE) compose -f docker-compose.yml -f compose.podman.yml
+COMPOSE_FILES += -f compose.podman.yml
+endif
 ifneq ($(wildcard docker-compose.override.yml),)
-COMPOSE += -f docker-compose.override.yml
+COMPOSE_FILES += -f docker-compose.override.yml
 endif
-else
-# Docker auto-loads docker-compose.override.yml when it exists.
-COMPOSE = $(ENGINE) compose
+# Egress learning mode (make learn / make learn-off): while the marker
+# exists, the proxy runs open+logging and sessions start WITHOUT the
+# signing key (compose.learning.yml). Last file wins on conflicts.
+ifneq (,$(wildcard .learning-mode))
+export EGRESS_MODE = learning
+COMPOSE_FILES += -f compose.learning.yml
 endif
+COMPOSE = $(ENGINE) compose $(COMPOSE_FILES)
 
 # Teardown variant: sees every profile, so nothing is left behind.
 COMPOSE_ALL = COMPOSE_PROFILES=$(ALL_PROFILES) $(COMPOSE)
@@ -78,6 +85,7 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
                fi
 
 .PHONY: help preflight build up down stop restart shell claude yolo doctor \
+        learn learn-off _learn-apply learned \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
         clean clean-dind \
         distclean reload-egress reload-images reload-ingress ps logs denied df
@@ -142,6 +150,38 @@ reload-ingress: ## Apply an ingress port/config change (recreates only the ingre
 	@$(COMPOSE) config --services | grep -qx ingress \
 	    || { echo "no 'ingress' service — enable it in docker-compose.override.yml (see docker-compose.override.example.yml)"; exit 1; }
 	$(COMPOSE) up -d --no-deps ingress
+
+# --- egress learning mode --------------------------------------------------
+# One open research pass that logs every contacted domain, then distills
+# the minimal allowlist. NOT the hardened posture: doctor stays red while
+# active, and sessions run WITHOUT the signing key (see docs/workflow.md).
+
+learn: preflight ## Enter egress learning mode (open egress, logged; signing key removed)
+	@touch .learning-mode
+	@$(MAKE) --no-print-directory EGRESS_MODE=learning _learn-apply
+	@echo
+	@echo "LEARNING MODE ACTIVE — egress is OPEN (LAN + git hosts still denied)."
+	@echo "  * Start a FRESH session (make claude/yolo) — it runs without the"
+	@echo "    signing key; sessions started earlier still carry it: close them."
+	@echo "  * Do not mount secret-bearing projects while this mode is on."
+	@echo "  * Distill with 'make learned'; leave with 'make learn-off'."
+
+learn-off: ## Leave learning mode and rebake the proxy with the (updated) allowlist
+	@rm -f .learning-mode
+	@$(MAKE) --no-print-directory EGRESS_MODE=allowlist _learn-apply
+	@echo
+	@echo "Learning mode OFF — allowlist enforced again. Rerun the task to"
+	@echo "verify the curated list is complete (blocked-domains catches gaps),"
+	@echo "and run 'make doctor' to confirm the posture is green."
+
+# Re-entered via $(MAKE) so the marker created/removed above is seen by a
+# fresh Makefile evaluation (COMPOSE/EGRESS_MODE are computed at parse time).
+_learn-apply:
+	$(COMPOSE) build egress-proxy
+	$(COMPOSE) up -d --no-deps egress-proxy
+
+learned: ## Distill the domains used in learning mode into an allowlist block
+	@$(COMPOSE) run --rm --no-deps -T claude-code learned-domains
 
 keygen: ## Ensure the signing key exists (idempotent, host-side)
 	@scripts/ensure-signing-key.sh

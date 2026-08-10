@@ -1,0 +1,16 @@
+# Git smart-HTTP hosts that stay DENIED even in learning mode — pushing is
+# a host-only operation by design, and this list keeps the egress proxy as
+# the second line of defense behind the git wrapper while everything else
+# is open.
+#
+# Deliberately EXACT hostnames (no leading dot): the read-only endpoints
+# on subdomains (api.github.com, codeload.github.com, gist content, ...)
+# stay reachable for research.
+github.com
+ssh.github.com
+gitlab.com
+altssh.gitlab.com
+bitbucket.org
+codeberg.org
+git.sr.ht
+gitea.com

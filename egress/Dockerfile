@@ -9,6 +9,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY squid.conf /etc/squid/squid.conf
+COPY squid.conf.learning /etc/squid/squid.conf.learning
+COPY git-hosts-deny.txt /etc/squid/git-hosts-deny.txt
 COPY allowlist.txt /etc/squid/allowlist-base.txt
 COPY allowlist.d/ /etc/squid/allowlist.d/
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh

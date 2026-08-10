@@ -135,6 +135,21 @@ updated in the same PR.
   after override changes" rule (docs/setup.md), not by tooling.
 - **DNS-rebinding note:** the RFC1918 `dst` deny in squid protects the LAN
   even if an allowlisted domain resolves to a private address.
+- **Learning mode (`make learn`) trades the allowlist for observability,
+  never silently.** For research tasks, the proxy can run open+logging so
+  `make learned` can distill the minimal allowlist from actual usage — an
+  inverted, single-pass version of the blocked-domains loop. The design
+  preserves the invariants instead of the list: LAN and git-host denies
+  stay active in the open config; the signing key is removed from
+  sessions via a compose `!override` overlay (the key mount is only
+  acceptable while egress provides no exfil channel — so the premise's
+  dependent leaves with the premise); the sandbox entrypoint hard-refuses
+  a learning session that still carries the key; doctor deliberately
+  stays red while the mode is active. Accepted while active: the
+  Anthropic token and workspace contents could be exfiltrated — bounded
+  by keeping the mode short-lived and secret-free, which is documented,
+  not enforced. Mode state is a gitignored host marker (`.learning-mode`)
+  so it can never be committed as a default.
 
 ## Git containment
 

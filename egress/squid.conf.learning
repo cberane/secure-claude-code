@@ -1,0 +1,64 @@
+# Squid egress proxy — LEARNING MODE. NOT the hardened posture.
+#
+# Selected by the entrypoint when EGRESS_MODE=learning (make learn).
+# Purpose: one open research pass that LOGS every contacted domain, so
+# `make learned` can distill the minimal explicit allowlist afterwards.
+#
+# What stays enforced even here:
+#   * Private/link-local destination ranges — the LAN is never reachable.
+#   * CONNECT restricted to 443, plain HTTP to 80.
+#   * Git smart-HTTP hosts (git-hosts-deny.txt) — push protection keeps
+#     its second line of defense; read endpoints (api.github.com, ...)
+#     are open like everything else.
+#
+# What is NOT enforced: the domain allowlist. Everything else is loud:
+# the sandbox entrypoint refuses to carry the signing key in this mode,
+# and doctor reports the posture as not in effect.
+
+http_port 3128
+
+# --- ACLs ---------------------------------------------------------------
+acl git_hosts dstdomain "/etc/squid/git-hosts-deny.txt"
+
+# Private, loopback and link-local destination ranges (host LAN protection).
+acl to_localnet dst 0.0.0.1-0.255.255.255
+acl to_localnet dst 10.0.0.0/8
+acl to_localnet dst 100.64.0.0/10
+acl to_localnet dst 127.0.0.0/8
+acl to_localnet dst 169.254.0.0/16
+acl to_localnet dst 172.16.0.0/12
+acl to_localnet dst 192.168.0.0/16
+acl to_localnet dst fc00::/7
+acl to_localnet dst fe80::/10
+acl to_localnet dst ::1/128
+
+acl SSL_ports port 443
+acl Safe_ports port 80
+acl Safe_ports port 443
+acl CONNECT method CONNECT
+
+# --- Access policy (order matters) --------------------------------------
+http_access deny to_localnet
+http_access deny !Safe_ports
+http_access deny CONNECT !SSL_ports
+http_access deny git_hosts
+http_access allow all
+
+# --- No disk state, no identifying headers ------------------------------
+cache deny all
+access_log stdio:/dev/stdout squid
+# Shared copy — `make learned` distills the allowlist candidates from it.
+access_log stdio:/var/log/squid/access.log squid
+logfile_rotate 0
+cache_log /dev/stderr
+cache_store_log none
+pid_filename none
+via off
+forwarded_for delete
+httpd_suppress_version_string on
+
+pinger_enable off
+
+connect_timeout 15 seconds
+forward_max_tries 5
+read_timeout 5 minutes
