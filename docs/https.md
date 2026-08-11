@@ -66,6 +66,11 @@ override, apply with `make reload-ingress`.
 
 ## Per project
 
+> Shortcut: in a Claude Code session in this repo, `/setup-https-in-project
+> myapp.test` performs this whole section — cert, nginx service in the
+> project's compose file, allowlist/ingress wiring — and prints what
+> remains manual.
+
 ```console
 $ make cert DOMAIN=myapp.test          # writes to $PROJECTS_DIR/certs/
 $ make cert DOMAIN=api.test DIR=api    # writes to $PROJECTS_DIR/api/certs/

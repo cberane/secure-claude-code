@@ -40,6 +40,8 @@ only *inside* the sandbox, never to this development environment.
   nested dind daemon) and the proxy's denied domains, from the host.
 - `.claude/skills/update-image` — refresh all version pins (digests, Claude
   Code, Composer) with automatic rollback.
+- `.claude/skills/setup-https-in-project` — wire a .test domain, cert and
+  nginx TLS terminator into the mounted project (docs/https.md).
 - `DECISIONS.md` — records the security/architecture decisions; update it
   when a decision changes.
 - User docs live in `docs/` (one file per topic, indexed from README.md);
