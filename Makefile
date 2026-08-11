@@ -17,6 +17,10 @@ export ENGINE
 # the container but silently not on the host.
 export SIGNING_KEY_WARN_DAYS SIGNING_KEY_MAX_DAYS SIGNING_KEY_ENFORCE
 
+# Dev-CA leaf validity (docs/https.md) — reaches the host-side mint/renew
+# scripts the same way.
+export CERT_DAYS
+
 # The dind sidecar lives behind a compose profile so it only exists when
 # the docker toolchain is enabled in .env (TOOLCHAINS=...,docker).
 ifneq (,$(findstring docker,$(TOOLCHAINS)))
@@ -70,6 +74,7 @@ define session
 	        $(ENGINE) rm -f claude-session >/dev/null; \
 	fi
 	@scripts/check-key-age.sh --context session || true
+	@scripts/renew-certs.sh --auto || true
 	@if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; then \
 	    echo "note: another session already holds the name 'claude-session'."; \
 	    echo "      starting this one unnamed — host ingress keeps targeting the first."; \
@@ -87,6 +92,7 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
 .PHONY: help preflight build up down stop restart shell claude yolo doctor \
         learn learn-off _learn-apply learned \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
+        certificates cert renew-certs \
         clean clean-dind \
         distclean reload-egress reload-images reload-ingress ps logs denied df
 
@@ -107,10 +113,18 @@ dind/images-allowlist.txt:
 	cp dind/images-allowlist.template.txt $@
 	@echo "Created local $@ from template (gitignored — edit freely)."
 
-build: preflight egress/allowlist.txt dind/images-allowlist.txt ## Build the sandbox images
+# Bind-mount source for the dev CA's PUBLIC half. Must exist before any
+# compose run, or the engine creates it root-owned; empty is fine (HTTPS
+# support is simply off until `make certificates`).
+secrets/dev-ca/public:
+	@mkdir -p $@
+
+build: preflight egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Build the sandbox images
+	@scripts/renew-certs.sh --auto || true
 	$(COMPOSE) build
 
-up: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Start the sandbox in the background
+up: preflight keygen egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Start the sandbox in the background
+	@scripts/renew-certs.sh --auto || true
 	$(COMPOSE) up -d
 
 down: ## Stop the sandbox (incl. dind sidecars and the interactive session)
@@ -123,13 +137,13 @@ stop: ## Stop containers but keep them (gentler than down; no removal)
 
 restart: down up ## Full restart — also drops the dind sidecar and with it every nested container
 
-shell: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Interactive shell inside the sandbox
+shell: preflight keygen egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Interactive shell inside the sandbox
 	$(call session,bash)
 
-claude: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code interactively inside the sandbox
+claude: preflight keygen egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Run Claude Code interactively inside the sandbox
 	$(call session,claude)
 
-yolo: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
+yolo: preflight keygen egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	$(call session,claude --dangerously-skip-permissions)
 
 # --- surgical reloads ------------------------------------------------------
@@ -182,7 +196,7 @@ _learn-apply:
 	$(COMPOSE) build egress-proxy
 	$(COMPOSE) up -d --no-deps egress-proxy
 
-learned: ## Distill the domains used in learning mode into an allowlist block
+learned: secrets/dev-ca/public ## Distill the domains used in learning mode into an allowlist block
 	@$(COMPOSE) run --rm --no-deps -T claude-code learned-domains
 
 keygen: ## Ensure the signing key exists (idempotent, host-side)
@@ -191,7 +205,23 @@ keygen: ## Ensure the signing key exists (idempotent, host-side)
 rotate-signing-key: ## Rotate the signing key (interactive, host-side)
 	@scripts/rotate-signing-key.sh
 
-doctor: preflight keygen egress/allowlist.txt dind/images-allowlist.txt ## Run the full hardening self-test (host + container)
+# --- local HTTPS (dev CA) --------------------------------------------------
+# Host-only, name-constrained CA for .test project certs; the sandbox only
+# ever sees the public cert and per-project 3-day leafs. Full guide and
+# threat model: docs/https.md.
+
+certificates: ## Create the local dev CA for project HTTPS (idempotent; prints trust steps)
+	@scripts/ensure-dev-ca.sh --show-trust
+
+cert: ## Mint a 3-day HTTPS cert into <project>/certs: make cert DOMAIN=myapp.test [DIR=subdir]
+	@[ -n "$(PROJECTS_DIR)" ] || { echo "cert: PROJECTS_DIR is not set — configure .env first."; exit 1; }
+	@scripts/ensure-dev-ca.sh
+	@scripts/mint-cert.sh "$(DOMAIN)" "$(PROJECTS_DIR)$(if $(DIR),/$(DIR),)/certs"
+
+renew-certs: ## Re-mint every dev-CA project cert with a fresh 3-day validity
+	@scripts/renew-certs.sh
+
+doctor: preflight keygen egress/allowlist.txt dind/images-allowlist.txt secrets/dev-ca/public ## Run the full hardening self-test (host + container)
 	@scripts/doctor.sh --host
 
 install-hooks: ## Install the secret-blocking pre-commit hook into THIS repo
@@ -209,7 +239,7 @@ ps: ## Show sandbox containers — outer AND the ones nested inside dind
 logs: ## Follow the sandbox logs (proxy denials, dind, ingress)
 	$(COMPOSE_ALL) logs -f --tail=100
 
-denied: ## List domains the egress proxy denied since its last restart
+denied: secrets/dev-ca/public ## List domains the egress proxy denied since its last restart
 	@$(COMPOSE) run --rm -T claude-code blocked-domains
 
 df: ## Show disk usage of the host engine AND of the nested dind daemon

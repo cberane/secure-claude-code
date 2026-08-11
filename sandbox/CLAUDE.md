@@ -72,5 +72,17 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   yourself. Containers
   nested inside dind have no DNS; they reach the egress proxy by the IP
   the docker client injects automatically — do not debug nested DNS.
+- HTTPS for a project (e.g. nginx terminating TLS inside dind): all
+  certificates are minted on the HOST — NEVER create CAs, self-signed
+  certificates, or key material yourself. A project's pair lives in
+  `<project>/certs/` (`myapp.test.crt`/`.key`, valid 3 days, SANs include
+  `dind` and `localhost`; `ca.crt` alongside is the public CA cert). If a
+  cert is missing or expired, print a HOST ACTION REQUIRED box asking the
+  user to run `make cert DOMAIN=myapp.test` (new) or `make renew-certs`
+  (expired), then **STOP and wait** — and remind them to reload nginx
+  after a renewal, since it keeps the old cert in memory. Test HTTPS from
+  inside the sandbox with `curl https://dind:8443` (the dev CA is already
+  trusted via SSL_CERT_FILE/CURL_CA_BUNDLE/NODE_EXTRA_CA_CERTS); the
+  user's browser uses `https://myapp.test:8443`.
 - If the pre-commit hook reports the signing key as too old, stop and ask
   the user to run `make rotate-signing-key` on the host.

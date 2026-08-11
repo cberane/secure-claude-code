@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # doctor.sh — hardening self-test. Covers the 19 acceptance criteria, plus
-# per-toolchain function checks (20-23) for each enabled toolchain.
+# per-toolchain function checks (20-23) for each enabled toolchain and the
+# dev-CA checks (24 container / 25 host, docs/https.md).
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
-#                                Runs host-side checks 11 and 15, and executes
-#                                the container-side checks via compose.
+#                                Runs host-side checks 11, 15 and 25, and
+#                                executes the container-side checks via
+#                                compose.
 #   doctor (inside container)  : container-side checks (all others).
 #
 # Output: one green PASS / red FAIL line per check, non-zero exit if any fail.
@@ -72,11 +74,16 @@ if [ "${1:-}" = "--host" ]; then
     # Tolerate quoted values — compose strips quotes, so must we.
     PROJECTS_DIR="$(sed -n 's/^PROJECTS_DIR=//p' .env | tail -1 | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")"
 
-    echo "=== Container-side checks (1-10, 12-14, 16-19, + enabled toolchains) ==="
+    # Bind-mount source of the dev CA's public half — missing, the engine
+    # would create it root-owned (normally ensured by make prerequisites;
+    # this covers direct `scripts/doctor.sh --host` runs).
+    mkdir -p secrets/dev-ca/public
+
+    echo "=== Container-side checks (1-10, 12-14, 16-19, 24, + enabled toolchains) ==="
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
-    echo "=== Host-side checks (11, 15) ==="
+    echo "=== Host-side checks (11, 15, 25) ==="
 
     # --- 11: file created in /workspace is owned by the host user ---------
     marker=".doctor-owner-test-$$"
@@ -102,6 +109,22 @@ if [ "${1:-}" = "--host" ]; then
         ok=0
     fi
     report 15 $ok "empty secrets/ triggers host-side key provisioning + pubkey display"
+    chmod -R u+w "$tmpd" && rm -rf "$tmpd"
+
+    # --- 25: dev CA — constrained mint works, non-.test refused, ≤3 days --
+    # Runs entirely against a temp dir (same pattern as 15): the production
+    # secrets/dev-ca is never touched.
+    tmpd="$(mktemp -d)"
+    ok=1
+    if DEV_CA_DIR="$tmpd/ca" scripts/ensure-dev-ca.sh >/dev/null 2>&1 \
+        && DEV_CA_DIR="$tmpd/ca" scripts/mint-cert.sh doctor.test "$tmpd/certs" >/dev/null 2>&1 \
+        && openssl verify -CAfile "$tmpd/ca/public/ca.crt" "$tmpd/certs/doctor.test.crt" >/dev/null 2>&1 \
+        && ! DEV_CA_DIR="$tmpd/ca" scripts/mint-cert.sh doctor.example.com "$tmpd/certs" >/dev/null 2>&1; then
+        end="$(date -d "$(openssl x509 -in "$tmpd/certs/doctor.test.crt" -noout -enddate | cut -d= -f2)" +%s)"
+        max=$(( $(date +%s) + ${CERT_DAYS:-3} * 86400 + 3600 ))
+        [ "$end" -le "$max" ] && ok=0
+    fi
+    report 25 $ok "dev CA: constrained 3-day mint verifies, non-.test domain refused"
     chmod -R u+w "$tmpd" && rm -rf "$tmpd"
 
     # Informational, never affects the check results: old images left behind
@@ -353,6 +376,27 @@ case ",${SANDBOX_TOOLCHAINS:-}," in *,docker,*)
     report 23 $ok "dind-guard denies non-allowlisted image pulls and raw API access"
     ;;
 esac
+
+# --- 24: dev-CA mount hygiene ---------------------------------------------
+# The dev CA (docs/https.md) is optional, but these must ALWAYS hold: no
+# private key material behind /run/secrets/dev-ca, the mount read-only,
+# and IF the CA cert is present it must carry critical name constraints
+# (that constraint is what makes trusting the CA on the host acceptable).
+ok=0
+detail=""
+if grep -rl -- 'PRIVATE KEY' /run/secrets/dev-ca >/dev/null 2>&1; then
+    ok=1; detail="private key material in the mount"
+fi
+if touch /run/secrets/dev-ca/.doctor-rwtest 2>/dev/null; then
+    rm -f /run/secrets/dev-ca/.doctor-rwtest
+    ok=1; detail="$detail mount is writable"
+fi
+if [ -f /run/secrets/dev-ca/ca.crt ]; then
+    catxt="$(openssl x509 -in /run/secrets/dev-ca/ca.crt -noout -text 2>/dev/null)"
+    printf '%s' "$catxt" | grep -q 'Name Constraints: critical' || { ok=1; detail="$detail constraints missing/non-critical"; }
+    printf '%s' "$catxt" | grep -q 'DNS:test' || { ok=1; detail="$detail .test subtree not permitted"; }
+fi
+report 24 $ok "dev-CA mount: read-only, cert-only, name-constrained" "$detail"
 
 cd /
 summary

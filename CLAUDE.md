@@ -28,7 +28,10 @@ only *inside* the sandbox, never to this development environment.
 
 ## Useful entry points
 
-- `make build` / `make doctor` — rebuild images, run the 19 end-to-end checks.
+- `make build` / `make doctor` — rebuild images, run the end-to-end checks.
+- `make certificates` / `make cert DOMAIN=x.test` / `make renew-certs` —
+  local dev CA (host-only, name-constrained) and short-lived project HTTPS
+  certs (docs/https.md).
 - `make reload-egress` / `reload-images` / `reload-ingress` — apply an
   allowlist or ingress change by rebuilding only that one service. Prefer
   these over `make restart`, which drops the dind sidecar and with it every

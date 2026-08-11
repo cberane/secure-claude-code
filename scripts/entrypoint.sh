@@ -57,7 +57,25 @@ if touch "$SIGNING_DIR/.rwtest" 2>/dev/null; then
 fi
 fi
 
-# --- 4. git configuration (global config lives on tmpfs) ------------------
+# --- 4. local dev CA trust (optional; docs/https.md) ----------------------
+# Host-provisioned, name-constrained dev CA for project HTTPS. Only the CA
+# CERTIFICATE may ever be present here — the key stays on the host.
+DEV_CA_CRT=/run/secrets/dev-ca/ca.crt
+if [ -d /run/secrets/dev-ca ]; then
+    found="$(grep -rl -- 'PRIVATE KEY' /run/secrets/dev-ca 2>/dev/null || true)"
+    [ -z "$found" ] || die "private key material found in /run/secrets/dev-ca — only ca.crt may be mounted there: $found"
+fi
+if [ -f "$DEV_CA_CRT" ]; then
+    # Rootfs is read-only, so no update-ca-certificates: combined bundle on
+    # tmpfs, wired up via the env vars the common tools honor.
+    cat /etc/ssl/certs/ca-certificates.crt "$DEV_CA_CRT" > /tmp/ca-bundle.crt
+    export SSL_CERT_FILE=/tmp/ca-bundle.crt \
+           CURL_CA_BUNDLE=/tmp/ca-bundle.crt \
+           REQUESTS_CA_BUNDLE=/tmp/ca-bundle.crt \
+           NODE_EXTRA_CA_CERTS="$DEV_CA_CRT"
+fi
+
+# --- 5. git configuration (global config lives on tmpfs) ------------------
 : "${GIT_CONFIG_GLOBAL:=/tmp/.gitconfig}"
 export GIT_CONFIG_GLOBAL
 rm -f "$GIT_CONFIG_GLOBAL"
@@ -81,12 +99,12 @@ git config --global --add safe.directory '/workspace/*'
 git config --global credential.helper ""
 git config --global core.fsmonitor false
 
-# --- 5. agent rules into the persistent Claude config volume --------------
+# --- 6. agent rules into the persistent Claude config volume --------------
 if [ -d "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}" ]; then
     cp -f /etc/claude/CLAUDE.md "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}/CLAUDE.md" 2>/dev/null || true
 fi
 
-# --- 6. signing key age (warn only at session start) ----------------------
+# --- 7. signing key age (warn only at session start) ----------------------
 if [ "${EGRESS_MODE:-allowlist}" != "learning" ]; then
     check-key-age --context session || true
 fi

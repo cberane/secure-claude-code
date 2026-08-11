@@ -205,6 +205,50 @@ has no exfiltration channel, so the simpler file mount wins. This trade-off
 **inverts** the moment the allowlist is widened to arbitrary hosts — warning
 placed in `docs/signing.md` and `egress/allowlist.txt`.
 
+## Local HTTPS (dev CA)
+
+- **Host-only, name-constrained dev CA instead of mkcert or in-sandbox
+  cert generation.** Projects that need valid HTTPS (PWAs, secure-context
+  APIs) get per-project leafs signed by one locally trusted CA. The CA key
+  follows the signing-key containment model: it never enters the sandbox
+  (only `public/ca.crt` is mounted read-only; the entrypoint dies on key
+  material in that mount, doctor 24 re-checks), and all minting is
+  host-side (`make cert`). The CA certificate carries **critical X.509
+  name constraints** (`.test`, `dind`, `localhost`, `127.0.0.1`) which
+  browsers enforce — a stolen CA key still cannot sign a working cert for
+  a real-world domain; doctor 25 proves a non-`.test` mint is refused.
+  Rejected: *mkcert* (unconstrained CA — local trust would become
+  MITM-anything trust — and auto-writes the OS trust store; here that
+  stays an explicit user action); *CA key mounted into the sandbox for
+  self-service* (violates "the agent holds no trust-minting material" for
+  a once-per-project convenience); *per-project self-signed certs* (the
+  original problem: no browser trust).
+- **`dind` and `localhost` are permitted subtrees and default SANs** so
+  the same leaf verifies for in-sandbox tests (`curl https://dind:8443` —
+  `.test` doesn't resolve on the internal network) and direct localhost
+  access. Both names are unroutable outside the machine; the added
+  surface is nil.
+- **Leafs are 3-day, per project, auto-renewed.** Default SANs
+  `<domain>` + `*.<domain>` cover any subdomain without a re-mint while
+  keeping the blast radius one project (a shared `*.test` leaf in the
+  agent-writable workspace would cover the CA's whole namespace;
+  `make cert DOMAIN='*.test'` stays available as a conscious opt-in).
+  3 days: long enough for a weekend YOLO session, short enough that a
+  leaked leaf key ages out. `make build/up/shell/claude/yolo` re-mint
+  every dev-CA-issued `*/certs/*.crt` under `PROJECTS_DIR`
+  (`renew-certs.sh --auto`); no CA provisioned = silent no-op, so the
+  feature is opt-in via `make certificates`. Accepted residual risk: the
+  constraint boundary is "all of `.test`", not one project — anything able
+  to edit the hosts file could steer one `.test` name at another project's
+  server; acceptable on a single-dev machine, and the reason the CA key
+  stays host-only rather than relying on constraints alone.
+- **8443 end-to-end, never 443.** The whole chain (host ingress →
+  dind-guard → dind → nginx publish) binds 8443, matching the existing
+  8080 pattern: no privileged port, no asymmetric remap in the haproxy
+  configs (portless `server` lines forward same-port), rootless
+  podman/dind unaffected. Cost is cosmetic (`https://myapp.test:8443`);
+  a secure context is any https origin regardless of port.
+
 ## Scope
 
 - **No `.devcontainer/`** — deliberately omitted: Makefile + compose

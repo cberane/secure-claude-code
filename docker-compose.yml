@@ -66,6 +66,9 @@ services:
       - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
       - claude-config:/home/dev/.claude
       - ./secrets/git-signing/:/run/secrets/git-signing/:ro
+      # Public half of the local dev CA ONLY (docs/https.md) — the ca.key
+      # next to it stays host-side; leafs are minted by `make cert`.
+      - ./secrets/dev-ca/public/:/run/secrets/dev-ca/:ro
       - egress-logs:/var/log/egress:ro
     working_dir: /workspace
     stdin_open: true

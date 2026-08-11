@@ -30,6 +30,7 @@ services: {}
 #       - "127.0.0.1:5173:5173"
 #       - "127.0.0.1:5432:5432"
 #       - "127.0.0.1:8025:8025"
+#       - "127.0.0.1:8443:8443"   # https via project certs (docs/https.md)
 #     networks: [sandbox, ingress]
 #     read_only: true
 #     security_opt: [no-new-privileges:true]

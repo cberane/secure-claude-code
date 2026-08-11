@@ -91,6 +91,7 @@ exact command. Run it, tell the agent to continue.
 | [docs/workflow.md](docs/workflow.md) | Daily workflow, HOST ACTION REQUIRED protocol, reload targets, visibility |
 | [docs/egress.md](docs/egress.md) | The allowlist proxy, common pitfalls, and learning mode for research |
 | [docs/signing.md](docs/signing.md) | Commit signing, key rotation, the exfiltration trade-off |
+| [docs/https.md](docs/https.md) | Local HTTPS: name-constrained dev CA, 3-day project certs, browser trust |
 | [docs/toolchains.md](docs/toolchains.md) | php/python/docker toolchains, dind, image-pull control, host ingress |
 | [docs/podman.md](docs/podman.md) | Rootless podman differences |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Recovery, disk management, common first-run errors |

@@ -20,7 +20,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
 fi
 
 # --- required tools --------------------------------------------------------
-for tool in jq ssh-keygen git; do
+for tool in jq ssh-keygen git openssl; do
     command -v "$tool" >/dev/null 2>&1 \
         || err "'$tool' is not installed — required on the host (see docs/setup.md, Prerequisites)."
 done

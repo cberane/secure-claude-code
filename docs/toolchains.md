@@ -84,6 +84,7 @@ Selected service ports of the nested stack come along, all bound to
 |---|---|
 | 8080 | app (session or dind) |
 | 8025 | mailpit UI |
+| 8443 | https, nginx inside dind with project certs ([docs/https.md](https.md)) |
 | 5432 | postgres (attach a host DB client) |
 | 5173 | vite |
 
