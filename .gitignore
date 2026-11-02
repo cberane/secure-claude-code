@@ -1,2 +1,5 @@
 .idea/
 .vscode/
+
+# Local scratch for temporary work (reports, analytics) - never committed
+.temp/
