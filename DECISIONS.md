@@ -249,6 +249,34 @@ placed in `docs/signing.md` and `egress/allowlist.txt`.
   podman/dind unaffected. Cost is cosmetic (`https://myapp.test:8443`);
   a secure context is any https origin regardless of port.
 
+## Workspaces
+
+- **`.env` is a generated artifact when workspaces are in use**
+  (`make workspace`, docs/workspaces.md). Definitions live in gitignored
+  `workspaces/*.env`; the generator writes a checksum header and refuses
+  to clobber a hand-edited `.env`. Rationale: `.env` stays the single
+  interface Makefile/compose read (no second config mechanism to drift),
+  while switching projects becomes one idempotent command instead of a
+  manual edit-plus-remember-the-right-make-targets sequence.
+- **`EGRESS=learning` is the only non-allowlist posture a workspace can
+  declare, and it routes through `make learn` / `make learn-off`.** No
+  separate "open egress" mode exists: open egress must keep its existing
+  coupling (signing key removed, doctor red, confirmation gate with
+  toolchains enabled) or the learning-mode decision above would be
+  silently bypassable via a workspace file. Leaving such a workspace runs
+  `learn-off` before anything else, so no workspace can inherit an open
+  proxy.
+- **Single-active workspace, no `COMPOSE_PROJECT_NAME` namespacing.**
+  Concurrent sandboxes would need per-workspace volumes (including
+  `claude-config`, i.e. re-login per workspace), ingress port juggling and
+  a solution for the fixed `claude-session` name — complexity not justified
+  by the switching use case. Revisit only if truly parallel sandboxes are
+  needed.
+- **Per-workspace egress additions** (`workspaces/<name>.allowlist.txt`,
+  baked in as `egress/allowlist.workspace.txt`) keep project-specific
+  domains out of the machine-global `egress/allowlist.txt`, so they
+  disappear when the workspace does.
+
 ## Scope
 
 - **No `.devcontainer/`** — deliberately omitted: Makefile + compose

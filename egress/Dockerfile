@@ -12,11 +12,15 @@ COPY squid.conf /etc/squid/squid.conf
 COPY squid.conf.learning /etc/squid/squid.conf.learning
 COPY git-hosts-deny.txt /etc/squid/git-hosts-deny.txt
 COPY allowlist.txt /etc/squid/allowlist-base.txt
+# Written by scripts/workspace.sh on `make workspace` (empty stub otherwise,
+# bootstrapped by the Makefile) — extra domains for the active workspace.
+COPY allowlist.workspace.txt /etc/squid/allowlist-workspace.txt
 COPY allowlist.d/ /etc/squid/allowlist.d/
 COPY --chmod=0755 entrypoint.sh /usr/local/bin/entrypoint.sh
 
-# Merge the machine-local base allowlist with one fragment per enabled
-# toolchain (TOOLCHAINS is a comma list, e.g. "php,python"), so enabling/
+# Merge the machine-local base allowlist, the active workspace's extra
+# domains and one fragment per enabled toolchain (TOOLCHAINS is a comma
+# list, e.g. "php,python"), so enabling/
 # disabling toolchains in .env automatically enables/disables their
 # domains. An unknown toolchain name fails the build (missing fragment
 # file). Comments and blank lines are stripped, duplicates deduplicated
@@ -29,7 +33,7 @@ RUN for t in $(printf '%s' "$TOOLCHAINS" | tr ',' ' '); do \
         [ -f "/etc/squid/allowlist.d/${t}.txt" ] \
             || { echo "unknown toolchain '${t}' (no allowlist fragment)" >&2; exit 1; }; \
     done \
-    && { cat /etc/squid/allowlist-base.txt; \
+    && { cat /etc/squid/allowlist-base.txt /etc/squid/allowlist-workspace.txt; \
          for t in $(printf '%s' "$TOOLCHAINS" | tr ',' ' '); do \
            cat "/etc/squid/allowlist.d/${t}.txt"; \
          done; } \
