@@ -4,8 +4,9 @@
 # dev-CA checks (24 container / 25 host, docs/https.md).
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
-#                                Runs host-side checks 11, 15 and 25, and
-#                                executes the container-side checks via
+#                                Runs host-side checks 11, 15 and 25 (plus
+#                                26 when the workspace switcher is in use),
+#                                and executes the container-side checks via
 #                                compose.
 #   doctor (inside container)  : container-side checks (all others).
 #
@@ -83,7 +84,7 @@ if [ "${1:-}" = "--host" ]; then
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
-    echo "=== Host-side checks (11, 15, 25) ==="
+    echo "=== Host-side checks (11, 15, 25 — plus 26 when workspaces are in use) ==="
 
     # --- 11: file created in /workspace is owned by the host user ---------
     marker=".doctor-owner-test-$$"
@@ -126,6 +127,30 @@ if [ "${1:-}" = "--host" ]; then
     fi
     report 25 $ok "dev CA: constrained 3-day mint verifies, non-.test domain refused"
     chmod -R u+w "$tmpd" && rm -rf "$tmpd"
+
+    # --- 26: workspace switcher state consistent (only when in use) -------
+    # Guards the two failure modes manual fiddling can produce: a
+    # hand-edited or stale generated .env, and a .learning-mode marker that
+    # contradicts the active workspace's declared EGRESS posture (an open
+    # proxy left behind under a hardened-looking workspace, or vice versa).
+    if [ -f .workspace ]; then
+        ws_name="$(cat .workspace)"
+        ok=1
+        if [ -f "workspaces/$ws_name.env" ] \
+            && grep -q "^# workspace: $ws_name\$" .env \
+            && [ "$(sed -n 's/^# sha256: //p' .env | head -1)" = \
+                 "$(sed '1,/^# sha256:/d' .env | sha256sum | cut -d' ' -f1)" ]; then
+            ws_egress="$(sed -n 's/^EGRESS=//p' .env | tail -1)"
+            ws_egress="${ws_egress:-allowlist}"
+            if [ -e .learning-mode ]; then
+                [ "$ws_egress" = "learning" ] && ok=0
+            else
+                [ "$ws_egress" != "learning" ] && ok=0
+            fi
+        fi
+        report 26 $ok "workspace: .env generated from '$ws_name', learning marker consistent" \
+            "rerun 'make workspace NAME=$ws_name' (docs/workspaces.md)"
+    fi
 
     # Informational, never affects the check results: old images left behind
     # by rebuilds (e.g. after the update-image skill) linger as dangling.

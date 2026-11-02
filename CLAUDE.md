@@ -32,6 +32,10 @@ only *inside* the sandbox, never to this development environment.
 - `make certificates` / `make cert DOMAIN=x.test` / `make renew-certs` —
   local dev CA (host-only, name-constrained) and short-lived project HTTPS
   certs (docs/https.md).
+- `make workspaces` / `make workspace NAME=x` / `make new-workspace NAME=x`
+  — named per-project profiles compiled into the generated `.env`
+  (docs/workspaces.md). When `.workspace` exists, edit `workspaces/*.env`,
+  never `.env` directly.
 - `make reload-egress` / `reload-images` / `reload-ingress` — apply an
   allowlist or ingress change by rebuilding only that one service. Prefer
   these over `make restart`, which drops the dind sidecar and with it every
@@ -42,6 +46,8 @@ only *inside* the sandbox, never to this development environment.
   Code, Composer) with automatic rollback.
 - `.claude/skills/setup-https-in-project` — wire a .test domain, cert and
   nginx TLS terminator into the mounted project (docs/https.md).
+- `.claude/skills/new-workspace` — interview-style creation of a workspace
+  definition (project dir, toolchains, egress needs), then offer the switch.
 - `DECISIONS.md` — records the security/architecture decisions; update it
   when a decision changes.
 - User docs live in `docs/` (one file per topic, indexed from README.md);
