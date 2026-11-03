@@ -29,6 +29,13 @@ statsig.anthropic.com
 statsig.com
 .sentry.io
 
+# Ollama Cloud — Anthropic-compatible model relay (docs/setup.md, "Base URL
+# relay"). The sandbox container cannot use a host-local Ollama server, so
+# when ANTHROPIC_BASE_URL points at ollama.com, this domain must be reachable.
+# Same risk class as api.anthropic.com: the model endpoint the CLI itself
+# calls, authenticated by its own API key (workspaces/secrets.env).
+ollama.com
+
 # npm registry (the wildcard covers registry.npmjs.org — squid rejects
 # listing a domain AND its parent wildcard as a fatal config error)
 .npmjs.org
