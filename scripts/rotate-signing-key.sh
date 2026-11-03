@@ -111,9 +111,15 @@ cat <<EOF
 │          Key type: "Signing Key" -> paste the key below.
 │ GitLab:  Preferences -> SSH Keys -> Usage type: "Signing"
 │
-│ Add the NEW key FIRST. Remove the old key ($old_fingerprint)
-│ only AFTER the new one is registered — forges re-check
-│ signatures of existing commits against registered keys.
+│ Add the NEW key FIRST. Then KEEP the old key ($old_fingerprint)
+│ registered as a Signing Key — the forge verifies commits at PUSH
+│ time, so commits pushed while the old key is unregistered arrive
+│ as "unverified" and can only be repaired by re-registering it.
+│
+│ Keep the old key online until every commit signed with it is
+│ pushed AND shows Verified (recommendation: about 1 week grace),
+│ then delete it — already-verified commits stay Verified.
+│ No "Valid until" exists for SSH keys: track removal manually.
 │
 $(sed 's/^/│   /' "$KEY.pub")
 │

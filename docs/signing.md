@@ -42,6 +42,34 @@ be signed by the current key. Old private keys are archived under
 the new public key at your forge **before** removing the old one, then
 `make restart`.
 
+## The forge side: keep the old key registered until everything is pushed
+
+Forges verify commit signatures at **push/ingest time**: a commit pushed
+while its signing key is not registered arrives as "unverified"
+(`unknown_key`) — exactly what the `allowed_signers` windows above
+cannot repair remotely. Two follow-up observations (GitHub,
+2026-11-03):
+
+- **Re-registering** the old key's public half (from
+  `secrets/git-signing/archive/<fingerprint>/`) re-evaluates those
+  commits — the unverified ones flip to Verified.
+- **Deleting a signing key afterwards does not unverify** commits that
+  were already verified; the status sticks once earned.
+
+Practical rotation sequence at the forge:
+
+1. Register the **new** key as a Signing Key.
+2. **Keep the old key registered** — until every commit signed with it
+   has been pushed *and* shows Verified (rule of thumb: about a week of
+   grace; `make rotate-signing-key` prints this guidance). Re-add it from
+   the archive when you find strays.
+3. Then remove it online — already-verified history stays Verified.
+
+No "Valid until" setting exists for SSH signing keys, so step 2 is
+tracked manually (note the removal date in the rotation log). The
+alternative — rewriting and re-signing published history — changes
+commit SHAs for every open PR and clone; avoid it.
+
 ## Signing key exfiltration trade-off
 
 The private key is readable inside the container (file mount). This is
