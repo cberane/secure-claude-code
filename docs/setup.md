@@ -57,6 +57,20 @@ Pick one:
   code back into the container prompt. The token persists in the
   `claude-config` volume across restarts.
 - **API key:** set `ANTHROPIC_API_KEY` in `.env`.
+- **Base URL relay** (any Anthropic-compatible endpoint, e.g. Ollama
+  Cloud): set `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`. Cloud relays
+  like `https://ollama.com` authenticate via **Bearer `ANTHROPIC_AUTH_TOKEN`**
+  and reject `ANTHROPIC_API_KEY` — keep it empty. Also point
+  `ANTHROPIC_MODEL` and the `ANTHROPIC_DEFAULT_*_MODEL` variables at a model
+  the relay serves (Claude Code requests haiku-class models for background
+  calls; a model name the relay doesn't know would break them). The relay's
+  host must be on the egress allowlist (`egress/allowlist.txt`) — doctor
+  check 27 verifies both. With workspaces in use, the token belongs in the
+  gitignored `workspaces/secrets.env`, the rest in `workspaces/common.env`.
+
+> Note: a relay URL is a config convenience, not an extra trust zone — the
+> API key rides in the container's environment exactly like a native
+> Anthropic key would.
 
 ## `.env` reference
 
@@ -67,7 +81,11 @@ Pick one:
 | `UID` / `GID` | `1000` | Your host IDs (`id -u` / `id -g`), so workspace files belong to you. Baked in at build time. |
 | `GIT_AUTHOR_NAME` / `GIT_AUTHOR_EMAIL` | — | Identity for commits made inside the container. |
 | `ANTHROPIC_API_KEY` | empty | See Authentication above. |
+| `ANTHROPIC_BASE_URL` | empty | Optional relay endpoint (see Authentication above). |
+| `ANTHROPIC_AUTH_TOKEN` | empty | Bearer token for the relay (`workspaces/secrets.env`). |
 | `ANTHROPIC_MODEL` | empty | Optional model override. |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | empty | Model for haiku-class side calls (summarization etc.). |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` / `ANTHROPIC_DEFAULT_OPUS_MODEL` | empty | Model for sonnet-/opus-class subagent calls. |
 | `TOOLCHAINS` | empty | Comma list: `php`, `python`, `docker` — see [toolchains.md](toolchains.md). Apply with `make build && make restart`. |
 | `MEM_LIMIT`, `CPUS`, `PIDS_LIMIT`, `NOFILE`, `TMP_SIZE` | 4g/2/512/4096/512m | Sandbox resource limits. |
 | `DIND_MEM_LIMIT` | 4g | Memory limit of the dind sidecar (docker toolchain only). |

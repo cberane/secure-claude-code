@@ -31,8 +31,8 @@ scripts/workspace.sh current             # active workspace + sync status
 
 The first `make new-workspace` also creates `workspaces/common.env` with
 the settings shared by every workspace (engine, UID/GID, git identity,
-API key), seeded from your existing `.env`. Everything under `workspaces/`
-is machine-local and gitignored, exactly like `.env` itself.
+model backend) and `workspaces/secrets.env` for API keys. Everything under
+`workspaces/` is machine-local and gitignored, exactly like `.env` itself.
 
 ## Files
 
@@ -40,10 +40,18 @@ is machine-local and gitignored, exactly like `.env` itself.
 |---|---|
 | `workspaces/common.env` | Shared settings, merged first |
 | `workspaces/<name>.env` | Per-workspace settings — wins on duplicate keys |
+| `workspaces/secrets.env` | **API keys and other secrets** — merged LAST, wins over everything; gitignored, created with mode 600 |
 | `workspaces/<name>.allowlist.txt` | Optional: extra egress domains for this workspace only |
 | `.workspace` | Name of the active workspace |
 | `.env` | **Generated** — header records source workspace + checksum |
 | `egress/allowlist.workspace.txt` | Generated copy of the active workspace's allowlist fragment, baked into the proxy |
+
+`workspaces/secrets.env` exists so keys survive every switch and
+regeneration of `.env`: definitions are merged into `.env` on each switch,
+so a key pasted into `.env` directly (or into a definition file) is
+guaranteed to be lost or committed eventually. Put relay/registry keys
+there only — e.g. `ANTHROPIC_AUTH_TOKEN=…` for the Ollama Cloud relay
+(docs/setup.md, "Base URL relay").
 
 `.env` stays the single interface the Makefile and compose read — nothing
 else in the sandbox changed. But it is now a build product: **edit the

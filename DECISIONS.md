@@ -251,6 +251,25 @@ placed in `docs/signing.md` and `egress/allowlist.txt`.
 
 ## Workspaces
 
+- **Secrets merge as a dedicated layer (`workspaces/secrets.env`,
+  gitignored), never as definition values.** Rationale: `.env` is a
+  generated build product — a key pasted there is silently wiped by the
+  next switch, and definition files are revision-control candidates, so
+  keys in them end up committed eventually. The secrets file wins over
+  every definition and survives all regeneration; `.gitignore` covers
+  `workspaces/` wholesale. Enforced by doctor check 27 (empty relay token
+  = explicit FAIL naming the file).
+- **Base-URL relay (e.g. Ollama Cloud) is a first-class auth mode**
+  (docs/setup.md, "Base URL relay"): `ANTHROPIC_BASE_URL` +
+  Bearer `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY` empty (cloud relays
+  reject x-api-key), all `ANTHROPIC_DEFAULT_*_MODEL` aliases mapped to a
+  model the relay serves, and the relay host on the egress allowlist
+  (`ollama.com`). Same trust class as the native API key: the model
+  endpoint the CLI itself calls, authenticated by its own key — no
+  additional exfil-surface reasoning beyond the allowlist warning already
+  in `egress/allowlist.template.txt`. Rejected alternative: tunneling to a
+  host-local Ollama server through Squid (port 11434 outside Safe_Ports,
+  plaintext HTTP, extra host daemon dependency).
 - **`.env` is a generated artifact when workspaces are in use**
   (`make workspace`, docs/workspaces.md). Definitions live in gitignored
   `workspaces/*.env`; the generator writes a checksum header and refuses
