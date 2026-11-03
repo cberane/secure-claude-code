@@ -244,6 +244,42 @@ done
 [ -n "$code" ] && [ "$code" != "000" ]
 report 7 $? "https://api.anthropic.com is reachable via proxy" "http_code=$code $(head -1 "$WORK/curl7.err" 2>/dev/null)"
 
+# --- 27: model relay (ANTHROPIC_BASE_URL) configured correctly -------------
+# A base-URL relay moves EVERY model call off api.anthropic.com. The three
+# ways this breaks a session must fail HERE, not at first prompt inside the
+# sandbox: (a) the relay's host is not on the egress allowlist — unreachable
+# through the proxy; (b) auth shape: relays like ollama.com authenticate via
+# Bearer ANTHROPIC_AUTH_TOKEN and reject x-api-key; (c) the token is empty.
+ok=0
+detail27=""
+if [ -n "${ANTHROPIC_BASE_URL:-}" ]; then
+    host="$(printf '%s' "${ANTHROPIC_BASE_URL:-}" | sed -E 's#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#[:/?].*$##')"
+    if [ -z "$host" ]; then
+        detail27="ANTHROPIC_BASE_URL is unparseable ('${ANTHROPIC_BASE_URL}')"
+    elif [ -z "${ANTHROPIC_AUTH_TOKEN:-}" ]; then
+        detail27="ANTHROPIC_AUTH_TOKEN is empty — a relay needs it (workspaces/secrets.env, docs/setup.md)"
+    else
+        # Reachability through the proxy: any HTTP response (even 401/404)
+        # proves the CONNECT tunnels — a blocked domain fails with 000.
+        rcode="000"
+        for _ in 1 2 3; do
+            rcode="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' "$ANTHROPIC_BASE_URL" 2>"$WORK/curl27.err")"
+            [ -n "$rcode" ] && [ "$rcode" != "000" ] && break
+        done
+        if [ -z "$rcode" ] || [ "$rcode" = "000" ]; then
+            detail27="relay host '$host' is NOT reachable via proxy — add it to egress/allowlist.txt, then 'make reload-egress'"
+        elif printf '%s' "$host" | grep -Eq '(^|\.)ollama\.(com|ai)$' && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+            # Ollama relays reject x-api-key — an API key set alongside the
+            # token silently breaks auth.
+            detail27="ANTHROPIC_API_KEY must be empty for ollama.com (Bearer ANTHROPIC_AUTH_TOKEN only)"
+        fi
+    fi
+fi
+# detail27 non-empty (or nothing reached) == failure; empty == PASS.
+[ -n "$detail27" ] && ok=1
+# No relay configured: OAuth / native API-key path — nothing to assert, PASS.
+report 27 "$ok" "model relay: base URL reachable, auth-shaped for ollama" "$detail27"
+
 # --- helper: throwaway repo ----------------------------------------------
 new_repo() {
     local d="$1"

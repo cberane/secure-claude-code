@@ -19,6 +19,12 @@
 # key removed, doctor red). This script never implements a separate,
 # weaker open mode (DECISIONS.md).
 #
+# API keys and other secrets live in gitignored workspaces/secrets.env
+# (merged LAST, so it wins over every definition). The generated .env
+# inherits them, compose passes them into the container — and they survive
+# every switch/edit of the definition files. Never put keys into common.env
+# or <name>.env.
+#
 # Escape hatches for automation: FORCE=1 overrides the manual-edit guard
 # on switch, WS_ACK=yes skips the kill-running-session confirmation.
 set -euo pipefail
@@ -31,6 +37,7 @@ WS_DIR=workspaces
 ENV_FILE=.env
 ACTIVE_MARKER=.workspace
 FRAG_TARGET=egress/allowlist.workspace.txt
+SECRETS_FILE=$WS_DIR/secrets.env
 
 die() { printf 'workspace: %s\n' "$*" >&2; exit 1; }
 
@@ -61,9 +68,12 @@ merge() {
     } END { for (i = 1; i <= n; i++) print val[order[i]] }' "$@"
 }
 
-# The merged payload a workspace would produce right now.
+# The merged payload a workspace would produce right now. Secrets
+# (gitignored workspaces/secrets.env) merge last and win over everything.
 merged_for() { # merged_for <name>
-    if [ -f "$WS_DIR/common.env" ]; then
+    if [ -f "$SECRETS_FILE" ]; then
+        merge "$WS_DIR/common.env" "$WS_DIR/$1.env" "$SECRETS_FILE"
+    elif [ -f "$WS_DIR/common.env" ]; then
         merge "$WS_DIR/common.env" "$WS_DIR/$1.env"
     else
         merge "$WS_DIR/$1.env"
@@ -165,9 +175,37 @@ cmd_new() {
             echo "GID=$(v="$(env_get "$ENV_FILE" GID)"; printf '%s' "${v:-$(id -g)}")"
             echo "GIT_AUTHOR_NAME=$(env_get "$ENV_FILE" GIT_AUTHOR_NAME)"
             echo "GIT_AUTHOR_EMAIL=$(env_get "$ENV_FILE" GIT_AUTHOR_EMAIL)"
-            echo "ANTHROPIC_API_KEY=$(env_get "$ENV_FILE" ANTHROPIC_API_KEY)"
+            echo ""
+            echo "# Model backend (docs/setup.md, 'Base URL relay'): non-secret"
+            echo "# settings only — the API key lives in workspaces/secrets.env."
+            echo "ANTHROPIC_BASE_URL=$(env_get "$ENV_FILE" ANTHROPIC_BASE_URL)"
+            echo "ANTHROPIC_API_KEY="
+            echo "ANTHROPIC_MODEL=$(env_get "$ENV_FILE" ANTHROPIC_MODEL)"
+            echo "ANTHROPIC_DEFAULT_HAIKU_MODEL=$(env_get "$ENV_FILE" ANTHROPIC_DEFAULT_HAIKU_MODEL)"
+            echo "ANTHROPIC_DEFAULT_SONNET_MODEL=$(env_get "$ENV_FILE" ANTHROPIC_DEFAULT_SONNET_MODEL)"
+            echo "ANTHROPIC_DEFAULT_OPUS_MODEL=$(env_get "$ENV_FILE" ANTHROPIC_DEFAULT_OPUS_MODEL)"
         } > "$WS_DIR/common.env"
         echo "Created $WS_DIR/common.env (shared identity/engine — edit once, applies everywhere)."
+    fi
+
+    # ANTHROPIC_API_KEY is deliberately NOT seeded from .env: keys belong in
+    # the gitignored secrets layer. Warn loudly when a legacy .env holds one.
+    if [ -n "$(env_get "$ENV_FILE" ANTHROPIC_API_KEY)" ]; then
+        echo "warning: existing .env has ANTHROPIC_API_KEY set — move it into $SECRETS_FILE." >&2
+    fi
+
+    # Secrets stub — gitignored from day one (see .gitignore), merged last
+    # by switch/new, survives every regeneration of .env.
+    if [ ! -f "$SECRETS_FILE" ]; then
+        {
+            echo "# Secrets merged LAST over every workspace definition."
+            echo "# Keep this file out of git (ignored by .gitignore)."
+            echo "# Example: your Ollama/Anthropic-compatible relay key —"
+            echo "ANTHROPIC_AUTH_TOKEN="
+            echo "# (Ollama Cloud needs Bearer auth here; keep ANTHROPIC_API_KEY empty in common.env.)"
+        } > "$SECRETS_FILE"
+        chmod 600 "$SECRETS_FILE"
+        echo "Created $SECRETS_FILE (gitignored) — put your API key(s) there."
     fi
 
     local seed_pd seed_tc
