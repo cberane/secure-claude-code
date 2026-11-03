@@ -3,3 +3,27 @@
 
 # Local scratch for temporary work (reports, analytics) - never committed
 .temp/
+
+# --- Machine-local configuration (docs/setup.md) ---------------------------
+# Hand-edited or generated env; backups keep the $$-suffixed variant in mind.
+.env
+.env.pre-workspaces
+.env.pre-workspaces.*
+
+# --- Secrets (docs/signing.md): host-only, never committed -----------------
+secrets/*
+!secrets/.gitkeep
+
+# --- Generated egress/dind state (docs/egress.md, docs/workspaces.md) ------
+# The proxy uses the LOCAL copies; tracked are only the *.template.txt files.
+egress/allowlist.txt
+egress/allowlist.workspace.txt
+dind/images-allowlist.txt
+docker-compose.override.yml
+.workspace
+.learning-mode
+
+# --- Workspace definitions (docs/workspaces.md) ----------------------------
+# Everything under workspaces/ is machine-local. API keys belong in
+# workspaces/secrets.env (created by scripts/workspace.sh, gitignored here).
+workspaces/
