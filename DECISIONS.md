@@ -64,9 +64,35 @@ updated in the same PR.
 - **Proxy container is hardened like the sandbox** (non-root `proxy` user,
   read-only rootfs, cap_drop ALL, tmpfs only). `pinger_enable off` because
   ICMP needs CAP_NET_RAW, which is dropped.
-- **`registry.npmjs.org` is not listed separately** — squid 5 treats a
-  domain plus its parent wildcard (`.npmjs.org`) as a fatal config error;
-  the wildcard covers it.
+- **`registry.npmjs.org` is not listed separately** — squid's docs treat a
+  domain plus its parent wildcard (`.npmjs.org`) as a config error; the
+  wildcard covers it. Observed on modern squid: a per-start WARNING only
+  ("'registry.npmjs.org' is a subdomain of '.npmjs.org'"), not fatal — the
+  wildcard rule stands regardless.
+- **Nested compose builds get the egress proxy via a plugin wrapper, not
+  from compose itself.** The sandbox's docker CLI ships without buildx, so
+  nested `docker compose build` (Sail) runs the legacy builder, which
+  resolves the docker client config's proxy values into UPPERCASE-ONLY
+  build args — and apt (noble) honors lowercase http_proxy/https_proxy
+  only (isolated probe-verified: plain `docker build` gets both cases and
+  works; compose forwards uppercase only; the daemon's env never reaches
+  build RUN steps). The compose plugin is therefore a wrapper
+  (`sandbox/compose-shim.sh`, installed over the real plugin, which it
+  execs): it injects lowercase `--build-arg` proxy values for `build`, and
+  prebuilds under the same args for `up`/`run`/`create` (these auto-build
+  but accept no build args; a cached project makes the prebuild instant).
+  Failure semantics are deliberately conservative: a failed prebuild only
+  warns and delegates, so the wrapper never behaves worse than unshimmed
+  compose, and explicit user `--build-arg` values still win (inserted
+  before, last-wins). Projects must not carry workarounds: proxy values in
+  project files leak the sandbox IP into the repo and break the same build
+  outside the sandbox (compose auto-loads `compose.override.yaml`
+  everywhere). Rejected: shipping buildx (defaults to the docker-container
+  driver here — its buildkit container ignores proxy env for registry
+  pulls and adds a second privileged buildkit image to the boundary); the
+  daemon-env forwarding (verified absent in every build path); agent-only
+  instructions (no mechanical guarantee). Doctor check 28 asserts both the
+  nested proxy env and the wrapper's presence.
 - **statsig/sentry telemetry domains are allowlisted** so Claude Code doesn't
   log connection errors; they can be removed freely (documented in the file).
 - **The squid access log is duplicated onto a shared volume** (`egress-logs`,

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # doctor.sh — hardening self-test. Covers the 19 acceptance criteria, plus
-# per-toolchain function checks (20-23) for each enabled toolchain and the
+# per-toolchain function checks (20-23, 28) for each enabled toolchain and the
 # dev-CA checks (24 container / 25 host, docs/https.md).
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
@@ -435,6 +435,32 @@ case ",${SANDBOX_TOOLCHAINS:-}," in *,docker,*)
     docker -H tcp://dind:2375 version >/dev/null 2>&1 && ok=1
     docker -H tcp://dind-daemon:2375 version >/dev/null 2>&1 && ok=1
     report 23 $ok "dind-guard denies non-allowlisted image pulls and raw API access"
+
+    # --- 28: nested container proxy injection + compose wrapper -------------
+    # Nested builds and runs (Sail services, compose RUN steps) rely on the
+    # sandbox docker client config (/etc/docker-client/config.json, baked at
+    # image build time) pushing the egress proxy into nested containers.
+    # BOTH env cases must arrive: apt (noble) only honors lowercase
+    # http_proxy/https_proxy, so a regression here silently breaks every
+    # nested image build (docker runs ignore uppercase; compose would
+    # forward it uppercase-only — see docs/toolchains.md, "Nested
+    # networking"). Compose's build path is additionally covered by the
+    # plugin wrapper (sandbox/compose-shim.sh), asserted here too.
+    ok=0
+    r1=0 r2=0 r3=0 rw=0
+    # The container doctor may run under a TTY (compose run): strip the pty's
+    # trailing carriage returns so the exact-line greps below match.
+    provout="$(docker run --rm --entrypoint env ubuntu:24.04 2>&1 | tr -d '\r')"
+    printf '%s' "$provout" | grep -qx 'http_proxy=http://172.30.0.3:3128'  || r1=1
+    printf '%s' "$provout" | grep -qx 'https_proxy=http://172.30.0.3:3128' || r2=1
+    printf '%s' "$provout" | grep -qx 'no_proxy=localhost,127.0.0.1,dind'  || r3=1
+    [ -x /etc/docker-client/cli-plugins/docker-compose ]    || rw=1
+    [ -x /usr/local/lib/docker/cli-plugins/docker-compose ] || rw=1
+    cv="$(docker compose version 2>&1)"; [ $? -eq 0 ] || rw=1
+    printf '%s' "$cv" | grep -q "Docker Compose version"     || rw=1
+    [ "$((r1 + r2 + r3 + rw))" -ne 0 ] && ok=1
+    detail28="missing:[${r1:+http_proxy }${r2:+https_proxy }${r3:+no_proxy }]${rw:+ wrapper-broken;} env=[$(printf '%s' "$provout" | grep -i proxy | sort | tr '\n' ' ')]"
+    report 28 $ok "nested container gets the egress proxy (both env cases) + compose wrapper" "$detail28"
     ;;
 esac
 

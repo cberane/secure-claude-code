@@ -94,6 +94,10 @@ COPY --chmod=0755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
 # entrypoint so they apply to every mounted project.
 COPY sandbox/CLAUDE.md /etc/claude/CLAUDE.md
 
+# Compose plugin wrapper for nested builds (docker toolchain installs it
+# over the real plugin; see sandbox/compose-shim.sh and the RUN case below).
+COPY sandbox/compose-shim.sh /usr/local/share/compose-shim.sh
+
 # --- Optional language toolchains (TOOLCHAINS="php,python", see .env) ----
 # php: php-cli + extensions and a version-pinned, checksum-verified
 #      composer (no installer script).
@@ -156,13 +160,19 @@ RUN case ",${TOOLCHAINS}," in \
             "https://github.com/docker/compose/releases/download/${COMPOSE_PLUGIN_VERSION}/docker-compose-linux-x86_64" \
         && echo "${COMPOSE_PLUGIN_SHA256}  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c - \
         && chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose \
-        && mkdir -p /etc/docker-client \
+        && mkdir -p /etc/docker-client/cli-plugins \
         && printf '%s\n' \
             '{"proxies":{"default":{' \
             "  \"httpProxy\":\"http://${EGRESS_PROXY_DIND_IP}:3128\"," \
             "  \"httpsProxy\":\"http://${EGRESS_PROXY_DIND_IP}:3128\"," \
             '  "noProxy":"localhost,127.0.0.1,dind"}}}' \
             > /etc/docker-client/config.json \
+        # The CLI reads $DOCKER_CONFIG/cli-plugins FIRST: installing the
+        # wrapper here shadows the real plugin (which the wrapper execs).
+        && sed "s|@EGRESS_PROXY_DIND_IP@|${EGRESS_PROXY_DIND_IP}|g" \
+            /usr/local/share/compose-shim.sh \
+            > /etc/docker-client/cli-plugins/docker-compose \
+        && chmod 0755 /etc/docker-client/cli-plugins/docker-compose \
         ;; \
     esac
 
