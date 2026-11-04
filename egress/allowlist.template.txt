@@ -36,8 +36,10 @@ statsig.com
 # calls, authenticated by its own API key (workspaces/secrets.env).
 ollama.com
 
-# npm registry (the wildcard covers registry.npmjs.org — squid rejects
-# listing a domain AND its parent wildcard as a fatal config error)
+# npm registry (the wildcard covers registry.npmjs.org — do NOT also list
+# the subdomain itself: squid then warns "'registry.npmjs.org' is a
+# subdomain of '.npmjs.org'" on every start. Observed as a WARNING, not the
+# fatal error squid's docs suggest — but don't: the wildcard is what matters)
 .npmjs.org
 
 # --- Optional: uncomment what your stack needs -------------------------

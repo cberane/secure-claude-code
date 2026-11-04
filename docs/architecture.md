@@ -75,5 +75,5 @@ make doctor
 runs 19 hardening checks (non-root, empty capability set, read-only rootfs,
 no docker socket, egress deny/allow, git blocking, commit-signing
 lifecycle, mount surface, ...) plus one function check per enabled
-toolchain (checks 20–23). Every property this page claims is asserted by
+toolchain (checks 20–23, 28). Every property this page claims is asserted by
 one of them.

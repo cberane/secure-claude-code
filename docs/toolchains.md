@@ -6,7 +6,7 @@ Set `TOOLCHAINS` in `.env` as a comma list — `TOOLCHAINS=php`,
 
 Each enabled toolchain automatically enables its registry domains at the
 proxy (`egress/allowlist.d/<toolchain>.txt`) — and drops them again when
-removed from the list — plus a doctor function check (20–23) asserting the
+removed from the list — plus a doctor function check (20–23, 28) asserting the
 toolchain runs and its registry is reachable.
 
 ## `php`
@@ -44,7 +44,19 @@ Key facts:
   `dind` hostname (e.g. `curl dind:8080`).
 - Nested image builds needing further domains (Ubuntu archives, PPAs,
   font CDNs) surface them via `blocked-domains`; the egress template
-  documents the known Laravel Sail set, commented out.
+  documents the known Laravel Sail set, commented out. EXCEPTION: a build
+  failing with "Temporary failure resolving <domain>" (and every domain in
+  the error) is the compose/legacy-builder proxy-case issue below, NOT a
+  blocked domain.
+- Nested `docker compose build` (Sail) builds through the legacy builder
+  (the sandbox CLI ships no buildx): compose would forward the client
+  config's proxy values as UPPERCASE-only build args, which apt (noble)
+  ignores. The sandbox's compose plugin is therefore a WRAPPER
+  (`sandbox/compose-shim.sh`, installed over the real plugin) that injects
+  the lowercase proxy build args itself — nested compose builds work out
+  of the box, and projects must never carry workaround files (they break
+  the same build outside the sandbox and leak sandbox IP addresses into
+  the repo).
 
 ### Image pull control
 
@@ -67,8 +79,24 @@ The sandbox talks to dind only through a filtering guard (`dind-guard`):
 
 Containers inside dind have no DNS for outer compose names — they reach
 the egress proxy via its static dind-net IP (172.30.0.3), which the
-sandbox's docker client injects into nested builds and runs automatically.
-Sail's app-image build works through this without any resolver.
+sandbox's docker client config (`/etc/docker-client/config.json`) injects
+into nested runs automatically (both env cases; nested RUN steps of
+`docker run`/Sail services work through this without any resolver).
+
+Nested **`docker compose build`** would be the one exception: the
+sandbox's docker CLI ships without the buildx component, so compose builds
+go through the legacy builder, where compose resolves the client-config
+proxy values into UPPERCASE-only build args — apt (noble) honours
+lowercase only and would fail with "Temporary failure resolving …".
+That gap is closed by the compose plugin wrapper
+([sandbox/compose-shim.sh](../sandbox/compose-shim.sh), installed over the
+real compose plugin): it injects the lowercase proxy build args for
+`build`, and prebuilds under the same args for `up`/`run`/`create` (whose
+auto-build path accepts no build args). A doctor check asserts the
+lowercase injection into nested containers plus the wrapper itself.
+Projects must not carry any workaround for this — the sandbox rules
+([sandbox/CLAUDE.md](../sandbox/CLAUDE.md), "Nested compose builds")
+explicitly forbid proxy values in project files.
 
 ### Host browser access (ingress)
 

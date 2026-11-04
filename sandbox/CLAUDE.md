@@ -62,6 +62,32 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   retry or work around it — print a HOST ACTION REQUIRED box asking the
   user to add the image to `dind/images-allowlist.txt` on the host and run
   `make reload-images`, then **STOP and wait for confirmation**.
+
+### Nested compose builds: the egress proxy is automatic
+
+- Nested `docker build`, `docker compose build`, and compose's auto-builds
+  (`up`, `run`, `create`) all get the egress proxy automatically: the
+  compose plugin in this image is a wrapper (`/etc/docker-client/
+  cli-plugins/docker-compose` exec'ing the real one beside it) that adds
+  the lowercase proxy build args compose's legacy path would otherwise
+  forward UPPERCASE-only (apt honors lowercase only; see
+  docs/toolchains.md, "Nested networking").
+- A nested build failing with "Temporary failure resolving <domain>" is
+  therefore NOT a blocked domain: do not run `blocked-domains` for it, and
+  do not debug nested DNS. If it still happens (e.g. the wrapper did not
+  reach a build), prebuild the affected service explicitly (e.g.
+  `laravel.test` for Sail) and rerun the project's normal commands:
+
+      docker compose build --build-arg http_proxy=http://172.30.0.3:3128 \
+          --build-arg https_proxy=http://172.30.0.3:3128 \
+          --build-arg no_proxy=localhost,127.0.0.1,dind <service>
+
+- NEVER write proxy values into project files — Dockerfile, `.env`, and
+  in particular NOT `compose.override.yaml`: compose auto-loads that file
+  on every machine, so it would also break the project's host/WSL builds
+  (unreachable proxy). If you find such a file, point it out and delete it.
+- Actual egress blocks (403 / "CONNECT tunnel failed") → the normal
+  `blocked-domains` protocol applies.
 - To let the user open a dev server in their host browser: bind it to
   `0.0.0.0:8080` (in this container, or published on 8080 inside dind,
   e.g. Sail with `APP_PORT=8080`) — the host may reach it at
