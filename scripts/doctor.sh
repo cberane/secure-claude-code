@@ -201,7 +201,11 @@ if [ "${1:-}" = "--host" ]; then
         sf="$(grep -v '^[[:space:]]*#' egress/allowlist.git-scope.txt | sed '/^[[:space:]]*$/d')"
         if [ "$gh_env_scope" = 1 ]; then
             printf '%s' "$sf" | LC_ALL=C sort | tr -d '\r' > "$tmpd/.sf-actual"
-            printf 'api.github.com\n.githubusercontent.com\ngithub.com\nuploads.github.com\n' > "$tmpd/.sf-expected"
+            # sort the expected set too — hardcoding an (unsorted) order here
+            # would make the scope-active path fail forever (LC_ALL=C puts
+            # '.githubusercontent.com' before 'api.github.com').
+            printf 'github.com\napi.github.com\nuploads.github.com\n.githubusercontent.com\n' \
+                | LC_ALL=C sort > "$tmpd/.sf-expected"
             cmp -s "$tmpd/.sf-actual" "$tmpd/.sf-expected" || ok=1
         else
             [ -n "$sf" ] && ok=1
@@ -618,7 +622,7 @@ else
             sleep 2
         done
         printf '%s' "$full" | grep -q "$repo" && ok=0 || \
-            detail33="gh api repos/$repo failed: $(head -1 "$WORK/gh33.err" 2>/dev/null)"
+            detail33="gh api repos/$repo failed: $(head -1 "$WORK/gh33.err" 2>/dev/null) — a 401/Bad credentials means the mounted token EXPIRED (installation tokens live 1h): refresh with 'make gh-renew' (session running) or 'make gh-token'"
     fi
     report 33 $ok "GITHUB scope: mounted token reaches the scoped repo" "$detail33"
 
