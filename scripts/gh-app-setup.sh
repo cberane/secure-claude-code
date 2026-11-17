@@ -103,7 +103,7 @@ if [ "${1:-}" = "--wire" ]; then
     sc="$repo/.secure-container"
     [ -f "$sc/workspace.env" ] || die "$sc missing — run 'make add-workspace PROJECT=$repo' first"
     owner_repo="$(printf '%s' "$(git -C "$repo" remote get-url origin 2>/dev/null || true)" \
-        | sed -E 's#^(https?|ssh)://[^/@]+@?github\.com[:/]##; s#^git@github\.com:##' \
+        | sed -E 's#^(https?|ssh)://[^/@]+@?github\.com[:/]##; s#^git@github\.com:##; s#\.git$##' \
         | grep -oE '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || true)"
     [ -n "$owner_repo" ] || die "no github origin in $repo"
 
