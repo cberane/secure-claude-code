@@ -89,7 +89,7 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
                    echo "WARNING: an interactive session (claude-session) is running and will be killed."; \
                fi
 
-.PHONY: help preflight build up down stop restart shell claude yolo doctor \
+.PHONY: help preflight build up down stop restart shell claude yolo doctor update-sandbox-skills \
         workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire install-scc \
         learn learn-off _learn-apply learned \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
@@ -173,11 +173,16 @@ secrets/dev-ca/public:
 secrets/github-space:
 	@mkdir -p $@
 
-build: preflight egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Run: Build the sandbox images
+# Remote skill-sets cache (docs/skills.md) — bind source for
+# /run/remote-skills; `make update-sandbox-skills` fills it (host git).
+skills-remote:
+	@mkdir -p $@
+
+build: preflight egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Run: Build the sandbox images
 	@scripts/renew-certs.sh --auto || true
 	$(COMPOSE) build
 
-up: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Run: Start the sandbox in the background
+up: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Run: Start the sandbox in the background
 	@scripts/renew-certs.sh --auto || true
 	$(COMPOSE) up -d
 
@@ -191,13 +196,13 @@ stop: ## Run: Stop containers but keep them (gentler than down; no removal)
 
 restart: down up ## Run: Full restart — also drops the dind sidecar and with it every nested container
 
-shell: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Run: Interactive shell inside the sandbox
+shell: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Run: Interactive shell inside the sandbox
 	$(call session,bash)
 
-claude: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Run: Run Claude Code interactively inside the sandbox
+claude: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Run: Run Claude Code interactively inside the sandbox
 	$(call session,claude)
 
-yolo: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Run: Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
+yolo: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Run: Run Claude Code with --dangerously-skip-permissions (the point of this sandbox)
 	$(call session,claude --dangerously-skip-permissions)
 
 # --- workspaces ------------------------------------------------------------
@@ -331,7 +336,7 @@ cert: ## TLS or signing: Mint a 3-day HTTPS cert into <project>/certs: make cert
 renew-certs: ## TLS or signing: Re-mint every dev-CA project cert with a fresh 3-day validity
 	@scripts/renew-certs.sh
 
-doctor: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space ## Inspect: Run the full hardening self-test (host + container)
+doctor: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Inspect: Run the full hardening self-test (host + container)
 	@scripts/doctor.sh --host
 
 install-hooks: ## Setup: Install the secret-blocking pre-commit hook into THIS repo
@@ -382,3 +387,6 @@ clean-dind: ## Maintenance: Drop the dind image/layer storage (keeps your Claude
 distclean: ## Maintenance: Also remove ALL volumes (logs you out of Claude, drops dind storage)
 	$(WARN_SESSION)
 	$(COMPOSE_ALL) down --remove-orphans --rmi local --volumes
+
+update-sandbox-skills: preflight skills-remote ## Skill-sets: refresh remote skills for the container (docs/skills.md)
+	@scripts/sync-sandbox-skills.sh

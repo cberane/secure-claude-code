@@ -21,6 +21,7 @@ egress/allowlist.workspace.txt
 egress/allowlist.project.txt
 egress/allowlist.git-scope.txt
 dind/images-allowlist.txt
+skills-remote/
 docker-compose.override.yml
 .workspace
 .learning-mode

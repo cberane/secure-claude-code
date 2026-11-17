@@ -97,6 +97,7 @@ exact command. Run it, tell the agent to continue.
 | [docs/toolchains.md](docs/toolchains.md) | php/python/docker toolchains, dind, image-pull control, host ingress |
 | [docs/podman.md](docs/podman.md) | Rootless podman differences |
 | [docs/scc.md](docs/scc.md) | The scc CLI: one-command onboarding, grouped commands | — the daily entry point |
+| [docs/skills.md](docs/skills.md) | Skill-sets in the sandbox: remote sources, update flow, conflict policy |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Recovery, disk management, common first-run errors |
 | [DECISIONS.md](DECISIONS.md) | Why it is built this way (ADR-style rationale) |
 

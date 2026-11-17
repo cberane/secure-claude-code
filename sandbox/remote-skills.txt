@@ -1,0 +1,12 @@
+# Remote skill-sets for the sandbox container (docs/skills.md).
+#
+# One GitHub repo per line (owner/repo, optional @ref). On
+# `make update-sandbox-skills` each is shallow-cloned into the machine-local
+# skills-remote/<owner>.<repo>/ and mounted read-only into the sandbox at
+# /run/remote-skills/ — the entrypoint links every
+# /run/remote-skills/*/skills/<name>/SKILL.md into ~/.claude/skills/<name>.
+# Skills referenced by these sets keep their repo-relative files (references/,
+# hooks) because the whole checkout is mounted.
+# Locally developed skills (not symlinks) are never clobbered by the link step.
+
+https://github.com/addyosmani/agent-skills   # why: curated engineering-workflow skills (TDD, review, security, perf)
