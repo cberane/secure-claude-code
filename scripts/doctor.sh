@@ -167,16 +167,24 @@ if [ "${1:-}" = "--host" ]; then
     if [ -n "$PROJECTS_DIR" ] && [ -f "$PROJECTS_DIR/egress/allowlist.txt" ]; then
         if scripts/merge-project-allowlist.sh >/dev/null 2>&1 \
             && [ -f egress/allowlist.project.txt ]; then
-            ok=0
-            while IFS= read -r dom; do
-                case "$dom" in '#'*) continue ;; esac
-                printf '%s' "$dom" | grep -Eq '^[a-z0-9.-]+' || continue
-                grep -qx "$(printf '%s' "$dom" | cut -d'#' -f1 | xargs)" egress/allowlist.project.txt || ok=1
-            done < "$PROJECTS_DIR/egress/allowlist.txt"
+            # both sides normalized: comments stripped, whitespace-trimmed
+            # (the generated copy keeps the source's "# why" comments intact)
+            src_domains="$(grep -v '^[[:space:]]*#' "$PROJECTS_DIR/egress/allowlist.txt" \
+                | cut -d'#' -f1 | xargs)"
+            gen_domains="$(grep -v '^[[:space:]]*#' egress/allowlist.project.txt \
+                | cut -d'#' -f1 | xargs)"
+            for d in $src_domains; do
+                case " $gen_domains " in *" $d "*) ;; *) ok=1 ;; esac
+            done
         else
             ok=1
         fi
-        report 29 $ok "project egress file merged into allowlist.project.txt" "check $PROJECTS_DIR/egress/allowlist.txt and rerun 'make reload-egress'"
+        if [ "$ok" = 0 ]; then
+            report 29 0 "project egress file merged into allowlist.project.txt"
+        else
+            report 29 1 "project egress file merged into allowlist.project.txt" \
+                "check $PROJECTS_DIR/egress/allowlist.txt and rerun 'make reload-egress'"
+        fi
     else
         report 29 0 "project egress file merged into allowlist.project.txt" "(no project file — nothing to merge)"
     fi
