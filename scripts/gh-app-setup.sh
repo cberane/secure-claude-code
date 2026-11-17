@@ -89,10 +89,11 @@ EOF
 # --- later via the app's settings page, the official fallback).
 #   gh-app-setup.sh --wire <pem-path> <repo-path>
 if [ "${1:-}" = "--wire" ]; then
+    app_id_in="${APP_ID:-}"
     pem_in="${2:-}"
     repo="${3:-}"
     [ -n "$pem_in" ] && [ -n "$repo" ] \
-        || die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem>"
+        || die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem> [APP_ID=<numeric app id>]"
     pem_in="${pem_in/#\~/$HOME}"
     repo="${repo/#\~/$HOME}"
     [ -f "$pem_in" ] || die "PEM not found at '$pem_in'"
@@ -117,8 +118,19 @@ if [ "${1:-}" = "--wire" ]; then
     cp -a "$pem_in" "$pem_path"
     chmod 600 "$pem_path"
 
-    # Identify the app BY THE KEY (JWT as app → GET /app): nothing to guess.
-    jwt="$(scripts/mint-github-token.sh jwt "$pem_path" 1 2>/dev/null)" \
+    # Identify the app: JWT auth needs the REAL app id as iss — there is no
+    # lookup-by-key endpoint on GitHub. The id is shown on the app's info
+    # page ("App ID" in the About box).
+    if [ -z "$app_id_in" ]; then
+        cat >&2 <<EOF
+gh-app-setup: the App ID is needed to authenticate as the app (JWT 'iss').
+Open https://github.com/settings/apps/ and your app's page — the About
+box lists 'App ID' as a number. Then rerun with APP_ID=that number:
+    make gh-app-wire PROJECT=$repo KEY=$pem_in APP_ID=<id>
+EOF
+        exit 1
+    fi
+    jwt="$(scripts/mint-github-token.sh jwt "$pem_path" "$app_id_in" 2>/dev/null)" \
         || die "could not sign a JWT with $pem_path (bad key?)"
     [ -n "$jwt" ] && [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" = 3 ] \
         || die "JWT signing failed"
@@ -126,8 +138,8 @@ if [ "${1:-}" = "--wire" ]; then
         -H "Accept: application/vnd.github+json" \
         "https://api.github.com/app")" \
         || die "GET /app failed (network?)"
-    printf '%s' "$app_json" | jq -e '.id and .slug' >/dev/null 2>&1 \
-        || die "GET /app did not return an app: $(printf '%s' "$app_json" | head -c 300)"
+    printf '%s' "$app_json" | jq -e --argjson want "$app_id_in" '.id == $want and .slug' >/dev/null 2>&1 \
+        || die "GET /app with App ID $app_id_in did not match (check the ID/key pair): $(printf '%s' "$app_json" | head -c 300)"
     app_id="$(printf '%s' "$app_json" | jq -r .id)"
     slug="$(printf '%s' "$app_json" | jq -r .slug)"
     info "identified app by key: $slug (id $app_id)"
