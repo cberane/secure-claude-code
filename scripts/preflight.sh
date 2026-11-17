@@ -25,6 +25,17 @@ for tool in jq ssh-keygen git openssl; do
         || err "'$tool' is not installed — required on the host (see docs/setup.md, Prerequisites)."
 done
 
+# --- executable bits ---------------------------------------------------------
+# The repo runs with core.filemode=false (Windows-remote bridging), so git
+# neither tracks nor restores exec bits on fresh checkouts — every directly
+# invoked host script would fail with "Permission denied". Restore them.
+for s in preflight.sh doctor.sh workspace.sh confirm-learn.sh \
+         ensure-signing-key.sh rotate-signing-key.sh check-key-age.sh \
+         ensure-dev-ca.sh mint-cert.sh renew-certs.sh \
+         merge-project-allowlist.sh mint-github-token.sh gh-app-setup.sh; do
+    [ -f "scripts/$s" ] && chmod +x "scripts/$s"
+done
+
 # --- engine + compose ------------------------------------------------------
 ENGINE="${ENGINE:-$(sed -n 's/^ENGINE=//p' .env 2>/dev/null | tail -1)}"
 ENGINE="${ENGINE:-docker}"
