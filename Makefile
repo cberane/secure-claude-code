@@ -247,10 +247,13 @@ gh-app: preflight ## GitHub: Create + wire the per-project App (manifest flow; 2
 gh-app-wire: preflight ## GitHub: Rescue/wire an app from an existing PEM: make gh-app-wire PROJECT=~/projects/x KEY=~/.config/.../app.pem
 	@scripts/gh-app-setup.sh --wire "$(KEY)" "$(PROJECT)"
 
-install-scc: preflight ## Setup: install the scc CLI for the current user (symlink ~/.local/bin/scc)
+install-scc: preflight ## Setup: install the scc CLI for the current user (launcher ~/.local/bin/scc)
 	@mkdir -p "$$HOME/.local/bin" \
-	    && ln -sfn "$(CURDIR)/scripts/scc.sh" "$$HOME/.local/bin/scc" \
-	    && echo "Installed scc -> ~/.local/bin/scc (symlink to $(CURDIR)/scripts/scc.sh)" \
+	    && rm -f "$$HOME/.local/bin/scc" \
+	    && printf '#!/bin/sh\nexec bash "%s/scripts/scc.sh" "$$@"\n' "$(CURDIR)" \
+	       > "$$HOME/.local/bin/scc" \
+	    && chmod 0755 "$$HOME/.local/bin/scc" \
+	    && echo "Installed scc -> ~/.local/bin/scc (launcher for $(CURDIR)/scripts/scc.sh)" \
 	    && ( echo "$$PATH" | grep -q "$$HOME/.local/bin" || echo "NOTE: add ~/.local/bin to PATH to use 'scc' everywhere" )
 
 # --- surgical reloads ------------------------------------------------------
