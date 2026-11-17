@@ -224,8 +224,15 @@ add-workspace: preflight ## Workspaces: Register a repo-anchored workspace: make
 gh-token: preflight secrets/github-space ## GitHub: Mint a 1h project-scoped GitHub token (human break-glass; hands it to local gh when present)
 	@scripts/mint-github-token.sh mint || exit 1
 	@if command -v gh >/dev/null 2>&1; then \
-	    gh auth login --with-token < secrets/github-space/token \
-	    && echo "gh auth: token installed for this shell's gh config (expires in 1h)"; \
+	    prev="$$(gh auth status --json 2>/dev/null | jq -r '.hosts["github.com"].users[] | select(.active) | .login' 2>/dev/null || true)"; \
+	    gh auth login --with-token < secrets/github-space/token; \
+	    new="$$(gh auth status --json 2>/dev/null | jq -r '.hosts["github.com"].users[] | select(.active) | .login' 2>/dev/null || true)"; \
+	    if [ -n "$$prev" ] && [ "$$prev" != "$$new" ]; then \
+	        gh auth switch -u "$$prev" >/dev/null 2>&1 \
+	        && echo "gh auth: token installed as '$$new' — your active account '$$prev' restored (switch with: gh auth switch -u $$new)"; \
+	    else \
+	        echo "gh auth: token installed for this shell's gh config (expires in 1h)"; \
+	    fi; \
 	else \
 	    echo "gh CLI not found in WSL — token written to secrets/github-space/token (expires in 1h)"; \
 	    echo "Install gh (docs/github.md) for 'make gh-token' to install it automatically."; \
