@@ -209,19 +209,19 @@ yolo: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egres
 workspaces: ## Workspaces: List workspace definitions (active one marked)
 	@scripts/workspace.sh list
 
-workspace: ## Workspaces: Switch workspace: make workspace NAME=x (FORCE=1 overrides the edit guard)
+workspace: preflight ## Workspaces: Switch workspace: make workspace NAME=x (FORCE=1 overrides the edit guard)
 	@if [ -z "$(NAME)" ]; then echo "workspace: NAME is required — make workspace NAME=x (a stray ambient NAME env var would otherwise leak in)"; exit 1; fi
 	@scripts/workspace.sh switch "$(NAME)"
 
-new-workspace: ## Workspaces: Create a workspace definition: make new-workspace NAME=x
+new-workspace: preflight ## Workspaces: Create a workspace definition: make new-workspace NAME=x
 	@if [ -z "$(NAME)" ]; then echo "new-workspace: NAME is required — make new-workspace NAME=x"; exit 1; fi
 	@scripts/workspace.sh new "$(NAME)"
 
-add-workspace: ## Workspaces: Register a repo-anchored workspace: make add-workspace PROJECT=~/projects/x [WS=custom-name]
+add-workspace: preflight ## Workspaces: Register a repo-anchored workspace: make add-workspace PROJECT=~/projects/x [WS=custom-name]
 	@if [ -z "$(PROJECT)" ]; then echo "add-workspace: PROJECT is required — make add-workspace PROJECT=~/projects/<repo>"; exit 1; fi
 	@scripts/workspace.sh add "$(PROJECT)" "$(WS)"
 
-gh-token: secrets/github-space ## GitHub: Mint a 1h project-scoped GitHub token (human break-glass; hands it to local gh when present)
+gh-token: preflight secrets/github-space ## GitHub: Mint a 1h project-scoped GitHub token (human break-glass; hands it to local gh when present)
 	@scripts/mint-github-token.sh mint || exit 1
 	@if command -v gh >/dev/null 2>&1; then \
 	    gh auth login --with-token < secrets/github-space/token \
@@ -231,13 +231,13 @@ gh-token: secrets/github-space ## GitHub: Mint a 1h project-scoped GitHub token 
 	    echo "Install gh (docs/github.md) for 'make gh-token' to install it automatically."; \
 	fi
 
-gh-renew: secrets/github-space ## GitHub: Refresh the GitHub token every ~50min while a session runs (24-48h runs; stops itself after)
+gh-renew: preflight secrets/github-space ## GitHub: Refresh the GitHub token every ~50min while a session runs (24-48h runs; stops itself after)
 	@scripts/mint-github-token.sh renew
 
-gh-app: ## GitHub: Create + wire the per-project App (manifest flow; 2 browser clicks): make gh-app PROJECT=~/projects/x
+gh-app: preflight ## GitHub: Create + wire the per-project App (manifest flow; 2 browser clicks): make gh-app PROJECT=~/projects/x
 	@scripts/gh-app-setup.sh "$(PROJECT)" "$(WS)"
 
-gh-app-wire: ## GitHub: Rescue/wire an app from an existing PEM: make gh-app-wire PROJECT=~/projects/x KEY=~/.config/.../app.pem
+gh-app-wire: preflight ## GitHub: Rescue/wire an app from an existing PEM: make gh-app-wire PROJECT=~/projects/x KEY=~/.config/.../app.pem
 	@scripts/gh-app-setup.sh --wire "$(KEY)" "$(PROJECT)"
 
 # --- surgical reloads ------------------------------------------------------
@@ -333,7 +333,7 @@ ps: ## Inspect: Show sandbox containers — outer AND the ones nested inside din
 logs: ## Inspect: Follow the sandbox logs (proxy denials, dind, ingress)
 	$(COMPOSE_ALL) logs -f --tail=100
 
-denied: secrets/dev-ca/public ## Egress: List domains the egress proxy denied since its last restart
+denied: preflight secrets/dev-ca/public ## Egress: List domains the egress proxy denied since its last restart
 	@$(COMPOSE) run --rm -T claude-code blocked-domains
 
 df: ## Inspect: Show disk usage of the host engine AND of the nested dind daemon
