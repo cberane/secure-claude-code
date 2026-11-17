@@ -90,7 +90,7 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
                fi
 
 .PHONY: help preflight build up down stop restart shell claude yolo doctor \
-        workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire \
+        workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire install-scc \
         learn learn-off _learn-apply learned \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
         certificates cert renew-certs \
@@ -239,6 +239,12 @@ gh-app: preflight ## GitHub: Create + wire the per-project App (manifest flow; 2
 
 gh-app-wire: preflight ## GitHub: Rescue/wire an app from an existing PEM: make gh-app-wire PROJECT=~/projects/x KEY=~/.config/.../app.pem
 	@scripts/gh-app-setup.sh --wire "$(KEY)" "$(PROJECT)"
+
+install-scc: preflight ## Setup: install the scc CLI for the current user (symlink ~/.local/bin/scc)
+	@mkdir -p "$$HOME/.local/bin" \
+	    && ln -sfn "$(CURDIR)/scripts/scc.sh" "$$HOME/.local/bin/scc" \
+	    && echo "Installed scc -> ~/.local/bin/scc (symlink to $(CURDIR)/scripts/scc.sh)" \
+	    && ( echo "$$PATH" | grep -q "$$HOME/.local/bin" || echo "NOTE: add ~/.local/bin to PATH to use 'scc' everywhere" )
 
 # --- surgical reloads ------------------------------------------------------
 # Apply a policy change WITHOUT tearing the sandbox down. `make restart`
