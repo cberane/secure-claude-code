@@ -19,6 +19,25 @@ cd "$repo_root"
 toolchains="$(sed -n 's/^TOOLCHAINS=//p' .env 2>/dev/null | tail -1 \
     | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/")"
 
+# A GITHUB scope and an open proxy are mutually exclusive: the token mount
+# would pair live repo-write access with unrestricted egress. Refuse BEFORE
+# the toolchains early-exit below — scoped workspaces usually run with
+# TOOLCHAINS set, but the minimal env must not bypass this gate either.
+if grep -q '^GITHUB_APP_ID=' .env 2>/dev/null \
+    && grep -q '^GITHUB_REPO=' .env 2>/dev/null; then
+    cat >&2 <<EOF
+┌─ REFUSED — LEARNING MODE + GITHUB SCOPE ──────────────
+│ The active workspace declares a GITHUB scope; its short-
+│ lived token would pair with completely open egress.
+│ Learning mode is not available for scoped workspaces.
+│   * leave the scope: remove GITHUB_* from
+│     .secure-container/workspace.env, then re-switch, or
+│   * switch to a workspace without a GitHub scope first.
+└───────────────────────────────────────────────────────
+EOF
+    exit 1
+fi
+
 # No toolchains: minimal env, the intended pairing — nothing to confirm.
 [ -z "$toolchains" ] && exit 0
 

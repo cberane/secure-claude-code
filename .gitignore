@@ -18,6 +18,8 @@ secrets/*
 # The proxy uses the LOCAL copies; tracked are only the *.template.txt files.
 egress/allowlist.txt
 egress/allowlist.workspace.txt
+egress/allowlist.project.txt
+egress/allowlist.git-scope.txt
 dind/images-allowlist.txt
 docker-compose.override.yml
 .workspace

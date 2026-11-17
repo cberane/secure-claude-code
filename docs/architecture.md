@@ -44,7 +44,8 @@ in [SECURITY.md](../SECURITY.md) and reasoned through in
  HOST ──────────────────────────────────────────────────────────────────
  │  ~/.ssh, cloud creds, browser sessions   <- never cross the boundary
  │  secrets/git-signing/   (created & rotated ONLY here)
- │  git push / pull / fetch                 (ONLY here)
+ │  git push / pull / fetch                 (host + per-workspace GitHub
+ │                                           scope token, docs/github.md)
  │
  │  docker/podman compose
  │  ┌─ sandbox network (internal: true — no gateway, no LAN) ─────────┐
@@ -55,11 +56,16 @@ in [SECURITY.md](../SECURITY.md) and reasoned through in
  │  │  │ rw: /workspace   (bind, THE risk) │   │ deny !allowlist   │  │    .npmjs.org
  │  │  │ rw: /tmp         (tmpfs, noexec)  │   └───────────────────┘  │    (nothing else)
  │  │  │ rw: ~/.claude    (named volume)   │                          │
- │  │  │ ro: /run/secrets/git-signing      │       X github.com       │
- │  │  └───────────────────────────────────┘       X gitlab.com       │
+ │  │  │ ro: /run/secrets/git-signing      │       X github.com*     │
+ │  │  └───────────────────────────────────┘       X gitlab.com*     │
  │  └──────────────────────────────────────────────X host LAN ────────┘
  └──────────────────────────────────────────────────────────────────────
 ```
+
+\* git hosts: denied by squid config in every posture, except the
+per-workspace GitHub scope file (docs/github.md) which opens exactly
+`github.com api.github.com uploads.github.com .githubusercontent.com`
+and pairs with a 1-hour installation token.
 
 With the `docker` toolchain enabled, two more containers join (not shown
 above): a rootless dind daemon on its own isolated network, and a filtering
@@ -72,8 +78,9 @@ guard that is the sandbox's only path to it. See
 make doctor
 ```
 
-runs 19 hardening checks (non-root, empty capability set, read-only rootfs,
-no docker socket, egress deny/allow, git blocking, commit-signing
+runs the hardening checks (non-root, empty capability set, read-only
+rootfs, no docker socket, egress deny/allow, git blocking, commit-signing
 lifecycle, mount surface, ...) plus one function check per enabled
-toolchain (checks 20–23, 28). Every property this page claims is asserted by
+toolchain (20–23, 28), the dev-CA checks (24/25) and the GitHub space
+checks (29–34, docs/github.md). Every property this page claims is asserted by
 one of them.

@@ -13,8 +13,9 @@ toolchain runs and its registry is reachable.
 
 Adds `php-cli` + a pinned, checksum-verified composer. Enables
 packagist and the GitHub read-only dist endpoints (`api.github.com`,
-`codeload.github.com` — deliberately not `github.com` itself, which would
-open the git smart-HTTP protocol).
+`codeload.github.com` — `github.com` itself only opens through the
+per-workspace GitHub scope, docs/github.md; the read endpoints never speak
+the git smart-HTTP protocol).
 
 ## `python`
 

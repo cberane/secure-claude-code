@@ -11,27 +11,39 @@ If you read only one thing: **keep the allowlist narrow.** Every domain you
 add is a potential exfiltration channel, and the security argument for the
 readable signing key depends on there being none (see the
 [exfiltration trade-off](signing.md#signing-key-exfiltration-trade-off)).
-Never add git remote hosts — pushing is a host-only operation by design,
-and their absence from the allowlist is the second line of defense behind
-the git wrapper.
+Git remote hosts stay out except for the deliberate per-workspace GitHub
+scope ([docs/github.md](github.md)) — their absence from the allowlist is
+the second line of defense behind the git wrapper.
 
 ## How the allowlist is built
 
-Two layers, combined at proxy build time:
+Three layers plus the git scope, combined at proxy build time:
 
 1. **Base list** — `egress/allowlist.txt`, your machine-local file
    (gitignored), created once from `egress/allowlist.template.txt`. Edit
    it freely; entries every user needs go into the tracked template
    instead.
-2. **Toolchain fragments** — when `TOOLCHAINS` in `.env` names a toolchain,
+2. **Workspace fragment** — `workspaces/<name>.allowlist.txt`, written by
+   the switcher into `egress/allowlist.workspace.txt`.
+3. **Per-project file** — `<project>/egress/allowlist.txt` (visible in the
+   sandbox as `/workspace/egress/allowlist.txt`), merged by
+   `scripts/merge-project-allowlist.sh` into `egress/allowlist.project.txt`
+   on every make. The committed copy travels with the repo — document each
+   domain with a `# why` comment; that file is the durable record.
+4. **Toolchain fragments** — when `TOOLCHAINS` in `.env` names a toolchain,
    its registry domains (`egress/allowlist.d/<toolchain>.txt`) are merged
    in automatically. Dropping a toolchain removes its domains again on the
    next build. You never hand-edit these for the built-in toolchains.
 
-Apply a change to the base list with **`make reload-egress`** — it rebuilds
-and recreates only the proxy, so a running session and any nested
-containers survive. (`make restart` would tear down the whole stack,
-including the dind sidecar and every nested container.)
+Git hosts are NOT part of any of these: the only git-host source is the
+generated `egress/allowlist.git-scope.txt` (docs/github.md), consulted by a
+dedicated squid ACL that runs before the allowlist.
+
+Apply a change to the base list with **`make reload-egress`** — it reruns
+the project merge (unconditionally — a stale copy can't survive a
+container rebuild), rebuilds and recreates only the proxy, so a running
+session and any nested containers survive. (`make restart` would tear down
+the whole stack, including the dind sidecar and every nested container.)
 
 ## When a request is blocked
 
@@ -126,6 +138,9 @@ Keeps (the invariants never bend):
 - **LAN deny** — private/link-local ranges stay unreachable.
 - **Git-host deny** — `egress/git-hosts-deny.txt` keeps the push/pull
   hosts blocked; GitHub read endpoints are open like everything else.
+  Workspaces carrying a GITHUB scope can never enter learning mode
+  (refused at switch and at the `make learn` gate), and the token mount is
+  stripped by the `!override` volume list regardless (docs/github.md).
 - **No signing key** — it is removed from sessions entirely (commits are
   unsigned), because the readable key is only defensible while egress
   offers no way out. The entrypoint refuses to start a learning session

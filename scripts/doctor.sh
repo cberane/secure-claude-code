@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # doctor.sh — hardening self-test. Covers the 19 acceptance criteria, plus
-# per-toolchain function checks (20-23, 28) for each enabled toolchain and the
-# dev-CA checks (24 container / 25 host, docs/https.md).
+# per-toolchain function checks (20-23, 28) for each enabled toolchain, the
+# dev-CA checks (24 container / 25 host, docs/https.md) and the GitHub
+# space checks (29-31 host, 32-34 container, docs/github.md).
 #
 #   scripts/doctor.sh --host   : run on the HOST (via `make doctor`).
 #                                Runs host-side checks 11, 15 and 25 (plus
@@ -84,7 +85,16 @@ if [ "${1:-}" = "--host" ]; then
     $COMPOSE run --rm claude-code doctor
     container_rc=$?
     echo
-    echo "=== Host-side checks (11, 15, 25 — plus 26 when workspaces are in use) ==="
+    echo "=== Host-side checks (11, 15, 25 — plus 26 with workspaces, 29-31 with GitHub config) ==="
+
+    env_get() { # minimal quoted-value reader (same semantics as workspace.sh)
+        [ -f "$1" ] || return 0
+        sed -n "s/^$2=//p" "$1" | tail -1 \
+            | sed -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'$/\1/"
+    }
+    WORK_HOST="$(mktemp -d /tmp/doctor-host.XXXXXX)"
+    trap 'rm -rf "$WORK_HOST"' EXIT
+    mkdir -p "$WORK_HOST"
 
     # --- 11: file created in /workspace is owned by the host user ---------
     marker=".doctor-owner-test-$$"
@@ -151,6 +161,87 @@ if [ "${1:-}" = "--host" ]; then
         report 26 $ok "workspace: .env generated from '$ws_name', learning marker consistent" \
             "rerun 'make workspace NAME=$ws_name' (docs/workspaces.md)"
     fi
+
+    # --- 29: per-project egress file honored (only when a project exists) --
+    ok=0
+    if [ -n "$PROJECTS_DIR" ] && [ -f "$PROJECTS_DIR/egress/allowlist.txt" ]; then
+        if scripts/merge-project-allowlist.sh >/dev/null 2>&1 \
+            && [ -f egress/allowlist.project.txt ]; then
+            # both sides normalized: comments stripped, whitespace-trimmed
+            # (the generated copy keeps the source's "# why" comments intact)
+            src_domains="$(grep -v '^[[:space:]]*#' "$PROJECTS_DIR/egress/allowlist.txt" \
+                | cut -d'#' -f1 | xargs)"
+            gen_domains="$(grep -v '^[[:space:]]*#' egress/allowlist.project.txt \
+                | cut -d'#' -f1 | xargs)"
+            for d in $src_domains; do
+                case " $gen_domains " in *" $d "*) ;; *) ok=1 ;; esac
+            done
+        else
+            ok=1
+        fi
+        if [ "$ok" = 0 ]; then
+            report 29 0 "project egress file merged into allowlist.project.txt"
+        else
+            report 29 1 "project egress file merged into allowlist.project.txt" \
+                "check $PROJECTS_DIR/egress/allowlist.txt and rerun 'make reload-egress'"
+        fi
+    else
+        report 29 0 "project egress file merged into allowlist.project.txt" "(no project file — nothing to merge)"
+    fi
+
+    # --- 30: GitHub scope consistency (only when GITHUB_* is configured) ---
+    # The scope file is the ONLY place git hosts may live: with a scope it
+    # must carry exactly the fixed domain set; without one the file must be
+    # the stub. Also: no apex git host may appear in any hand-edited source.
+    gh_env_scope=0
+    [ -n "$(env_get .env GITHUB_APP_ID)" ] && [ -n "$(env_get .env GITHUB_REPO)" ] && gh_env_scope=1
+    tmpd="$WORK_HOST"
+    ok=0
+    if [ -f egress/allowlist.git-scope.txt ]; then
+        sf="$(grep -v '^[[:space:]]*#' egress/allowlist.git-scope.txt | sed '/^[[:space:]]*$/d')"
+        if [ "$gh_env_scope" = 1 ]; then
+            printf '%s' "$sf" | LC_ALL=C sort | tr -d '\r' > "$tmpd/.sf-actual"
+            printf 'api.github.com\n.githubusercontent.com\ngithub.com\nuploads.github.com\n' > "$tmpd/.sf-expected"
+            cmp -s "$tmpd/.sf-actual" "$tmpd/.sf-expected" || ok=1
+        else
+            [ -n "$sf" ] && ok=1
+        fi
+    else
+        ok=1
+    fi
+    for src in egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.project.txt; do
+        if [ -f "$src" ] && grep -hE '^github\.com$|^gitlab\.com$|^bitbucket\.org$' "$src" >/dev/null 2>&1; then
+            ok=1
+        fi
+    done
+    report 30 $ok "GitHub scope consistent (.env <-> scope file <-> no apex hosts in sources)" \
+        "fix via 'make workspace NAME=<active>' — docs/github.md"
+
+    # --- 31: git-space secrets hygiene --------------------------------------
+    # The app .pem that mints tokens never enters any container or the repo;
+    # the mounted token file is machine-local and carries only the ≤1h token.
+    kp="$(env_get workspaces/secrets.env GITHUB_APP_KEY_PATH)"
+    ok=0
+    if [ -z "$kp" ]; then
+        [ "$gh_env_scope" = 0 ] || ok=1
+    else
+        if [ ! -f "$kp" ]; then
+            ok=1
+        else
+            m="$(stat -c '%a' "$kp" 2>/dev/null || echo '?')"
+            { [ "$m" = 600 ] || [ "$m" = 400 ]; } || ok=1
+            head -1 "$kp" | grep -q 'PRIVATE KEY' || ok=1
+            kp_real="$(realpath "$kp" 2>/dev/null || echo "$kp")"
+            root_real="$(realpath . 2>/dev/null || pwd)"
+            case "$kp_real" in "$root_real"/*) ok=1 ;; esac
+        fi
+    fi
+    if [ -f secrets/github-space/token ] \
+        && grep -q 'PRIVATE KEY' secrets/github-space/token 2>/dev/null; then
+        ok=1
+    fi
+    report 31 $ok "GitHub mint key + token file hygiene" \
+        "key path: ${kp:-<unset>} — docs/github.md (key stays HOST-side, never committable)"
 
     # Informational, never affects the check results: old images left behind
     # by rebuilds (e.g. after the update-image skill) linger as dangling.
@@ -290,18 +381,30 @@ new_repo() {
 }
 
 # --- 8: git network subcommands blocked -----------------------------------
+# Scope-aware: with a GITHUB scope, push/pull/fetch for the scoped repos are
+# allowed (see checks 33/34); everything else, including a foreign repo URL
+# on the same host, must still print the HOST ACTION REQUIRED box.
 new_repo "$WORK/net-repo" >/dev/null 2>&1
 ok=0
-for sub in "push" "fetch" "pull"; do
-    out="$(git $sub 2>&1)"
-    rc=$?
-    if [ $rc -eq 0 ] || ! printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; then
-        ok=1
-    fi
-done
+if [ -n "${GITHUB_APP_ID:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
+    foreign="${GITHUB_REPO%%,*}"
+    foreign="$(printf 'https://github.com/doctor-foreign/%s' "$(basename "$foreign")")"
+    # a foreign repo push: wrapper must stop it even in scope mode
+    out="$(cd "$WORK/net-repo" && git push "$foreign" 2>&1)"
+    { [ $? -ne 0 ] && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; } || ok=1
+else
+    for sub in "push" "fetch" "pull"; do
+        out="$(git $sub 2>&1)"
+        rc=$?
+        if [ $rc -eq 0 ] || ! printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; then
+            ok=1
+        fi
+    done
+fi
 out="$(cd /tmp && git clone https://example.com/x.git 2>&1)"
 { [ $? -ne 0 ] && printf '%s' "$out" | grep -q 'HOST ACTION REQUIRED'; } || ok=1
-report 8 $ok "git push/fetch/pull/clone blocked with host instructions"
+report 8 $ok "git push/fetch/pull/clone blocked outside the GITHUB scope" \
+    "$([ -n "${GITHUB_APP_ID:-}" ] && echo "scope active: foreign-repo push tested")"
 
 # --- 9: Co-Authored-By commit rejected ------------------------------------
 cd "$WORK/net-repo"
@@ -484,6 +587,55 @@ if [ -f /run/secrets/dev-ca/ca.crt ]; then
     printf '%s' "$catxt" | grep -q 'DNS:test' || { ok=1; detail="$detail .test subtree not permitted"; }
 fi
 report 24 $ok "dev-CA mount: read-only, cert-only, name-constrained" "$detail"
+
+# --- 32/33/34: GitHub space posture (docs/github.md) -----------------------
+# 32 (no scope): git hosts must be proxy-DENIED — asserted via the CONNECT
+#   result, not the wrapper, so the squid config itself is under test.
+# 33 (scope): the mounted token actually reaches the scoped repo via `gh`.
+# 34 (scope): the credential helper serves the token for github.com.
+gh_scope="/run/secrets/github-space/token"
+if [ -z "${GITHUB_APP_ID:-}" ]; then
+    ok=0
+    err="$(curl -sS -m 20 -o /dev/null https://github.com 2>&1)"
+    rc=$?
+    if [ $rc -ne 0 ] && printf '%s' "$err" | grep -q '403'; then
+        detail32="CONNECT denied (403)"
+    else
+        ok=1
+        detail32="curl rc=$rc $(printf '%s' "$err" | head -1)"
+    fi
+    report 32 $ok "git host denied by squid config (no GITHUB scope)" "$detail32"
+else
+    # 33: live read against the scoped repo through gh (retry for flakiness)
+    ok=1
+    detail33="no token mounted — mint on the HOST (make gh-token / make gh-renew)"
+    if [ -s "$gh_scope" ]; then
+        repo="${GITHUB_REPO%%,*}"
+        full=""
+        for _ in 1 2 3; do
+            full="$(gh api "repos/$repo" --jq .full_name 2>"$WORK/gh33.err")"
+            [ -n "$full" ] && break
+            sleep 2
+        done
+        printf '%s' "$full" | grep -q "$repo" && ok=0 || \
+            detail33="gh api repos/$repo failed: $(head -1 "$WORK/gh33.err" 2>/dev/null)"
+    fi
+    report 33 $ok "GITHUB scope: mounted token reaches the scoped repo" "$detail33"
+
+    # 34: credential helper wiring — git credential fill for github.com must
+    # come back from the helper with the token (no network, no prompts).
+    creds="$(printf 'protocol=https\nhost=github.com\n\n' \
+        | GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/true git credential fill 2>&1)"
+    ok=0
+    if printf '%s' "$creds" | grep -q '^username=x-access-token$' \
+        && printf '%s' "$creds" | grep -q '^password='; then
+        detail34=""
+    else
+        ok=1
+        detail34="$(printf '%s' "$creds" | head -1)"
+    fi
+    report 34 $ok "GITHUB scope: credential helper serves github.com" "$detail34"
+fi
 
 cd /
 summary

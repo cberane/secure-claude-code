@@ -186,15 +186,66 @@ updated in the same PR.
 ## Git containment
 
 - **Wrapper at `/usr/local/bin/git`** (PATH-shadowing). Anything invoking
-  `/usr/bin/git` by absolute path bypasses it — accepted, because the egress
-  proxy (no git hosts allowlisted, plus `credential.helper=` empty) is the
-  second, independent line of defense. The wrapper's job is a clear,
-  actionable stop signal for the agent, not cryptographic containment.
+  `/usr/bin/git` by absolute path bypasses it — accepted. Historical
+  rationale ("the egress proxy is the second, independent line of defense")
+  **no longer holds once a GITHUB scope is active** — see the GitHub
+  automation section below. Without a scope the old statement stands: git
+  hosts are proxy-denied (now by explicit squid ACL ordering, no longer
+  only by absence from the allowlist) and no credential exists to deliver.
+  The wrapper's job remains a clear, actionable stop signal, now
+  scope-aware: the declared repos over HTTPS are allowed, everything else
+  still prints the HOST ACTION REQUIRED box.
 - **Blocked beyond the spec:** `ls-remote`, `remote update`, `remote prune`,
-  `submodule add` — all network operations of the same class.
+  `submodule add` — all network operations of the same class. With a scope,
+  `ls-remote` joins push/pull/fetch as allowed for scoped URLs.
 - **Hooks via global `core.hooksPath=/opt/git-hooks`** so mounted project
   repos stay unpolluted. Trade-off: project-local hooks are not executed
   inside the container (they still run on the host).
+
+## GitHub automation (docs/github.md) — supersedes "remotes are host-only"
+
+- **Per-project GitHub Apps with 1-hour installation tokens replace the
+  manual host-only push workflow.** Blast-radius reasoning: GitHub fixes
+  installation-token lifetime at 1 h (unconfigurable) and the mint call —
+  the only place a token is born — always sends `repositories` (never
+  installation-default) plus a minimal permission set. A hostile session
+  or a leaked credential therefore costs one project's repos for one hour.
+  The previous design (manual host-side pushes, no auth anywhere in WSL)
+  was damage control that killed agentic flows; this trades a documented,
+  bounded exposure for restored automation.
+- **The mint step is the boundary; the git wrapper and CLAUDE.md rules are
+  stop signals.** `/usr/bin/git` by absolute path, `git config remote.*.url`
+  edits in the writable workspace, and `-c` aliases all bypass the wrapper,
+  so scope claims at the wrapper layer must never be load-bearing. The
+  and the egress scope file alone only opens the *transport* (hosts), never
+  authority: even with all domains reachable, the token decides what is
+  writable.
+- **Egress change that closes an old gap:** `egress/squid.conf` now denies
+  git hosts explicitly before the allowlist in the enforcing config (the
+  deny ACL previously existed only in the learning config — a git host on
+  the merged allowlist would have passed silently). The single exception
+  path is the generated per-workspace `git-scope.txt` (four fixed domains,
+  machine-generated, never hand-edited), ordered before the deny.
+- **Token delivery:** host-side rotation (`make gh-renew`, ~50 min
+  cadence, self-stopping when the session ends) writes
+  `secrets/github-space/token`; the container mounts it read-only and the
+  baked credential helper + gh wrapper read it per invocation — no
+  restart, no long-lived secret in the container. The App .pem never
+  enters any container; doctor 31 asserts key hygiene, the entrypoint
+  refuses key material behind /run/secrets/github-space.
+- **Learning mode and a GITHUB scope are mutually exclusive.** Refused at
+  switch (before any state is written) and at the `make learn` gate (the
+  gate runs before the toolchains early-exit); the `!override` volume list
+  strips the token mount in any case. An open egress must never pair with
+  a live repo-write token.
+- **`.secure-container/` in project repos is a deliberate exception** to
+  the "no second config location" rule (`Scope` section, `.devcontainer/`
+  entry): the workspace profile is project-truth that must survive machine
+  loss, so it travels with the repo. Mitigations keeping it from drifting
+  into a second `.devcontainer`: it contains no secrets (doctor-side key
+  hygiene check), the merge order makes machine-local overrides win, and
+  its README documents itself; the sandbox image never reads it except
+  through the generated `.env`.
 
 ## Signing
 
@@ -277,6 +328,25 @@ placed in `docs/signing.md` and `egress/allowlist.txt`.
 
 ## Workspaces
 
+- **Repo-anchored definitions (`.secure-container/`) for git checkouts.**
+  The project profile (TOOLCHAINS, EGRESS, GitHub scope) is committed
+  inside the project repo; the machine-local `workspaces/<name>.env` holds
+  a reference (`SECURE_PROJECT_PATH`) plus machine-only overrides, and the
+  switcher derives `PROJECTS_DIR` from it. Merge order: `common.env` →
+  repo profile → `<name>.env` → `secrets.env` (machine overrides win over
+  the committed profile; secrets win over everything). Rationale: config
+  that describes the project must not die with the machine — see the
+  Scope-section exception above for the drift argument. `make
+  add-workspace PROJECT=<path>` seeds and registers; `new-workspace` stays
+  for local-only scratch workspaces.
+- **Per-project egress additions live inside the project**
+  (`<project>/egress/allowlist.txt`), merged host-side into
+  `egress/allowlist.project.txt` on every make: the `# why` documentation
+  is versioned with the repo instead of living in a gitignored sidecar
+  that a lost machine erases. The merge runs unconditionally (a plain file
+  prerequisite would fire once and go stale) and writes only on content
+  change, so the proxy layer cache stays warm. Apex git hosts are refused
+  there; the scope file remains the only git-host writer.
 - **Secrets merge as a dedicated layer (`workspaces/secrets.env`,
   gitignored), never as definition values.** Rationale: `.env` is a
   generated build product — a key pasted there is silently wiped by the

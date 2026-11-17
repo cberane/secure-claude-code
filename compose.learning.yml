@@ -5,7 +5,9 @@
 # is acceptable ONLY because the allowlist leaves no exfiltration channel
 # (docs/signing.md) — learning mode opens egress, so the key must leave.
 # `!override` replaces the whole volume list (needs compose >= 2.24,
-# checked by preflight); keep it in sync with docker-compose.yml.
+# checked by preflight); keep it in sync with docker-compose.yml. The
+# GitHub space-token mount (docker-compose.yml) is stripped by this same
+# mechanism — learning mode NEVER carries a live repo-write token.
 services:
   claude-code:
     volumes: !override

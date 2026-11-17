@@ -11,8 +11,9 @@
 #
 # Keep this list MINIMAL. Every entry is a potential exfiltration channel.
 # In particular: git remote hosts (github.com, gitlab.com, ...) must NEVER
-# be added here — pushing is a host-only operation by design, and this list
-# is the second line of defense after the git wrapper.
+# be added here — they are config-denied before this allowlist is consulted,
+# and the only git-host access path is the per-workspace GitHub scope
+# (docs/github.md).
 #
 # WARNING: widening this list also weakens the reasoning that makes the
 # read-only signing-key mount acceptable (see docs/signing.md, "Signing key

@@ -66,6 +66,10 @@ services:
       - ${PROJECTS_DIR:?Set PROJECTS_DIR in .env}:/workspace:rw
       - claude-config:/home/dev/.claude
       - ./secrets/git-signing/:/run/secrets/git-signing/:ro
+      # The 1h GitHub space token ONLY (docs/github.md) — the app .pem that
+      # mints it stays host-side; `make gh-renew` rotates this file live.
+      # Learning mode strips it automatically (compose.learning.yml override).
+      - ./secrets/github-space/:/run/secrets/github-space/:ro
       # Public half of the local dev CA ONLY (docs/https.md) — the ca.key
       # next to it stays host-side; leafs are minted by `make cert`.
       - ./secrets/dev-ca/public/:/run/secrets/dev-ca/:ro

@@ -66,7 +66,8 @@ fi
     echo "│"
     echo "│ WARNING: every allowlist entry is a potential exfiltration"
     echo "│ channel — add only what the task needs, and NEVER git hosts"
-    echo "│ (push/pull are host-only by design)."
+    echo "│ here (git remote access runs only through the per-workspace"
+    echo "│ GitHub scope — docs/github.md)."
     echo "└───────────────────────────────────────────────────────"
 } >&2
 exit 0
