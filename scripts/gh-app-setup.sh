@@ -38,8 +38,105 @@ env_set() { # env_set <file> <key> <value> — replace, or append past templates
     printf '%s=%s\n' "$key" "$value" >> "$file"
 }
 
+# Shared wiring: with app id + PEM known (either flow), finish the job —
+# probe the installation id, write profile + secrets, print the summary.
+wire_install() { # wire_install <app_id> <slug> <owner_repo> <pem_path> <sc-dir>
+    local app_id="$1" slug="$2" owner_repo="$3" pem_path="$4" sc="$5"
+    local inst_id="" install_url="https://github.com/apps/$slug/installations/new"
+
+    for _ in 1 2 3 4 5 6; do
+        local jwt
+        jwt="$(scripts/mint-github-token.sh jwt "$pem_path" "$app_id" 2>/dev/null || true)"
+        if [ -n "$jwt" ] && [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" = 3 ]; then
+            inst_id="$(curl -sS -m 30 \
+                -H "Authorization: Bearer $jwt" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/app/installations" \
+                | jq -r '.[0].id // empty' 2>/dev/null || true)"
+            [ -n "$inst_id" ] && { info "installation found: $inst_id"; break; }
+        fi
+        info "installation not visible yet — finish the browser step (install: $install_url); re-probing in 30 s…"
+        sleep 30
+    done
+
+    env_set "$sc/workspace.env" GITHUB_APP_ID "$app_id"
+    env_set "$sc/workspace.env" GITHUB_REPO "$owner_repo"
+    if [ -n "$inst_id" ]; then
+        env_set "$sc/workspace.env" GITHUB_INSTALLATION_ID "$inst_id"
+    else
+        printf '\n# gh-app-setup: finish the install at %s, then set:\n#GITHUB_INSTALLATION_ID=<numeric id>\n' \
+            "$install_url" >> "$sc/workspace.env"
+        info "no installation yet — set GITHUB_INSTALLATION_ID in $sc/workspace.env (or rerun)"
+    fi
+    env_set workspaces/secrets.env GITHUB_APP_KEY_PATH "$pem_path"
+
+    cat >&2 <<EOF
+
+✔ App wired:
+    app:           $slug ($app_id)
+    key:           $pem_path (0600, host-only, never committed)
+    profile:       $sc/workspace.env (GITHUB_APP_ID, GITHUB_REPO${inst_id:+, GITHUB_INSTALLATION_ID})
+    secrets.env:   GITHUB_APP_KEY_PATH
+
+Next:
+    make workspace NAME=<name>
+    make gh-token        # or: make gh-renew (long session)
+EOF
+}
+
+# --- rescue mode: a PEM was manually generated/downloaded for an app whose
+# --- manifest creation SUCCEEDED but whose exchange failed (or a key created
+# --- later via the app's settings page, the official fallback).
+#   gh-app-setup.sh --wire <pem-path> <repo-path>
+if [ "${1:-}" = "--wire" ]; then
+    pem_in="${2:-}"
+    repo="${3:-}"
+    [ -n "$pem_in" ] && [ -n "$repo" ] \
+        || die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem>"
+    pem_in="${pem_in/#\~/$HOME}"
+    repo="${repo/#\~/$HOME}"
+    [ -f "$pem_in" ] || die "PEM not found at '$pem_in'"
+    head -1 "$pem_in" | grep -q 'PRIVATE KEY' || die "'$pem_in' is not a private key (.pem)"
+    [ -d "$repo" ] || die "repo path '$repo' does not exist"
+    repo="$(cd "$repo" && pwd)"
+    sc="$repo/.secure-container"
+    [ -f "$sc/workspace.env" ] || die "$sc missing — run 'make add-workspace PROJECT=$repo' first"
+    owner_repo="$(printf '%s' "$(git -C "$repo" remote get-url origin 2>/dev/null || true)" \
+        | sed -E 's#^(https?|ssh)://[^/@]+@?github\.com[:/]##; s#^git@github\.com:##' \
+        | grep -oE '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || true)"
+    [ -n "$owner_repo" ] || die "no github origin in $repo"
+
+    for tool in curl jq; do
+        command -v "$tool" >/dev/null || die "$tool is required"
+    done
+
+    # Adopt the key: copy into the managed key dir from wherever it came.
+    key_dir="$HOME/.config/secure-container/github-apps"
+    mkdir -p "$key_dir"
+    pem_path="$key_dir/$(basename "$pem_in" .pem).pem"
+    cp -a "$pem_in" "$pem_path"
+    chmod 600 "$pem_path"
+
+    # Identify the app BY THE KEY (JWT as app → GET /app): nothing to guess.
+    jwt="$(scripts/mint-github-token.sh jwt "$pem_path" 1 2>/dev/null)" \
+        || die "could not sign a JWT with $pem_path (bad key?)"
+    [ -n "$jwt" ] && [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" = 3 ] \
+        || die "JWT signing failed"
+    app_json="$(curl -sS -m 30 -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github+json" \
+        "https://api.github.com/app")" \
+        || die "GET /app failed (network?)"
+    printf '%s' "$app_json" | jq -e '.id and .slug' >/dev/null 2>&1 \
+        || die "GET /app did not return an app: $(printf '%s' "$app_json" | head -c 300)"
+    app_id="$(printf '%s' "$app_json" | jq -r .id)"
+    slug="$(printf '%s' "$app_json" | jq -r .slug)"
+    info "identified app by key: $slug (id $app_id)"
+    wire_install "$app_id" "$slug" "$owner_repo" "$pem_path" "$sc"
+    exit 0
+fi
+
 path="${1:-}"
-[ -n "$path" ] || die "usage: make gh-app PROJECT=~/projects/<repo> [WS=<app-name>]"
+[ -n "$path" ] || die "usage: make gh-app PROJECT=~/projects/<repo> [WS=<app-name>] | make gh-app-wire PROJECT=<repo> KEY=<pem>"
 path="${path/#\~/$HOME}"
 [ -d "$path" ] || die "project path '$path' does not exist"
 path="$(cd "$path" && pwd)"
@@ -168,15 +265,21 @@ kill "$srv" 2>/dev/null || true
 srv=""
 
 # --- 5. exchange the code: app id + pem ------------------------------------------
+# Schema (docs.github.com, App manifest conversions): the response is a
+# full GitHub App object + pem/client_secret/webhook_secret — the app id is
+# "id", NOT "app_id"; slug is optional.
 resp="$(curl -sS -m 30 -X POST \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/app-manifests/$code/conversions")" \
     || die "manifest conversion call failed (network?)"
-printf '%s' "$resp" | jq -e '.app_id and .pem' >/dev/null 2>&1 \
-    || die "manifest conversion rejected: $(printf '%s' "$resp" | head -1 | cut -c1-200)"
-app_id="$(printf '%s' "$resp" | jq -r .app_id)"
-slug="$(printf '%s' "$resp" | jq -r .slug)"
-pem_path="$key_dir/$slug.pem"
+if ! printf '%s' "$resp" | jq -e '.id and .pem' >/dev/null 2>&1; then
+    printf 'gh-app-setup: manifest conversion failed, full response:\n%s\n' \
+        "$(printf '%s' "$resp" | head -c 600)" >&2
+    die "if the app WAS created (HTML flow finished), rescue it with: make gh-app-wire PROJECT=<repo> KEY=<pem>"
+fi
+app_id="$(printf '%s' "$resp" | jq -r .id)"
+slug="$(printf '%s' "$resp" | jq -r '.slug // empty')"
+pem_path="$key_dir/${slug:-app-$app_id}.pem"
 mkdir -p "$key_dir"
 printf '%s\n' "$(printf '%s' "$resp" | jq -r .pem)" > "$pem_path"
 chmod 600 "$pem_path"
@@ -184,44 +287,5 @@ if ! head -1 "$pem_path" | grep -q 'PRIVATE KEY'; then
     die "downloaded PEM does not look like a private key — not saved; rerun the command"
 fi
 
-# --- 6. wire the installation id (fresh key as JWT → /app/installations) ---------
-install_url="https://github.com/apps/$slug/installations/new"
-inst_id=""
-for _ in 1 2 3 4 5 6; do
-    jwt="$(scripts/mint-github-token.sh jwt "$pem_path" "$app_id" 2>/dev/null || true)"
-    if [ -n "$jwt" ] && [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" = 3 ]; then
-        inst_id="$(curl -sS -m 30 \
-            -H "Authorization: Bearer $jwt" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/app/installations" \
-            | jq -r '.[0].id // empty' 2>/dev/null || true)"
-        [ -n "$inst_id" ] && { info "installation found: $inst_id"; break; }
-    fi
-    info "installation not visible yet — finish the browser step; re-probing in 30 s…"
-    sleep 30
-done
-
-# --- 7. write the wiring ----------------------------------------------------------
-env_set "$sc/workspace.env" GITHUB_APP_ID "$app_id"
-env_set "$sc/workspace.env" GITHUB_REPO "$owner_repo"
-if [ -n "$inst_id" ]; then
-    env_set "$sc/workspace.env" GITHUB_INSTALLATION_ID "$inst_id"
-else
-    printf '\n# gh-app-setup: finish the install at %s, then set:\n#GITHUB_INSTALLATION_ID=<numeric id>\n' \
-        "$install_url" >> "$sc/workspace.env"
-    info "no installation yet — set GITHUB_INSTALLATION_ID in $sc/workspace.env (or rerun this script)"
-fi
-env_set workspaces/secrets.env GITHUB_APP_KEY_PATH "$pem_path"
-
-cat >&2 <<EOF
-
-✔ App created and wired:
-    app:           $app_name ($slug, id $app_id)
-    key:           $pem_path (0600, host-only, never committed)
-    profile:       $sc/workspace.env (GITHUB_APP_ID, GITHUB_REPO${inst_id:+, GITHUB_INSTALLATION_ID})
-    secrets.env:   GITHUB_APP_KEY_PATH
-
-Next:
-    make workspace NAME=<name>
-    make gh-token        # or: make gh-renew (long session)
-EOF
+# --- 6. wire (shared with the rescue mode) ---------------------------------------
+wire_install "$app_id" "$slug" "$owner_repo" "$pem_path" "$sc"
