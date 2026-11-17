@@ -92,8 +92,9 @@ if [ "${1:-}" = "--wire" ]; then
     app_id_in="${APP_ID:-}"
     pem_in="${2:-}"
     repo="${3:-}"
-    [ -n "$pem_in" ] && [ -n "$repo" ] \
-        || die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem> [APP_ID=<numeric app id>]"
+    if [ -z "$pem_in" ] || [ -z "$repo" ]; then
+        die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem> [APP_ID=<numeric app id>]"
+    fi
     pem_in="${pem_in/#\~/$HOME}"
     repo="${repo/#\~/$HOME}"
     [ -f "$pem_in" ] || die "PEM not found at '$pem_in'"
@@ -132,8 +133,9 @@ EOF
     fi
     jwt="$(scripts/mint-github-token.sh jwt "$pem_path" "$app_id_in" 2>/dev/null)" \
         || die "could not sign a JWT with $pem_path (bad key?)"
-    [ -n "$jwt" ] && [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" = 3 ] \
-        || die "JWT signing failed"
+    if [ -z "$jwt" ] || [ "$(printf '%s' "$jwt" | awk -F. '{print NF}')" != 3 ]; then
+        die "JWT signing failed"
+    fi
     app_json="$(curl -sS -m 30 -H "Authorization: Bearer $jwt" \
         -H "Accept: application/vnd.github+json" \
         "https://api.github.com/app")" \
@@ -164,7 +166,6 @@ owner_repo="$(printf '%s' "$origin" \
     | grep -oE '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || true)"
 printf '%s' "$owner_repo" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' \
     || die "could not parse owner/repo from origin '$origin'"
-owner="${owner_repo%%/*}"
 repo_name="${owner_repo##*/}"
 # App names are unique across ALL of GitHub — suffix a short random tag.
 [ -n "$app_name" ] \
