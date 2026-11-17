@@ -32,7 +32,8 @@ done
 for s in preflight.sh doctor.sh workspace.sh confirm-learn.sh \
          ensure-signing-key.sh rotate-signing-key.sh check-key-age.sh \
          ensure-dev-ca.sh mint-cert.sh renew-certs.sh \
-         merge-project-allowlist.sh mint-github-token.sh gh-app-setup.sh scc.sh; do
+         merge-project-allowlist.sh mint-github-token.sh gh-app-setup.sh scc.sh \
+         sync-sandbox-skills.sh; do
     [ -f "scripts/$s" ] && chmod +x "scripts/$s"
 done
 

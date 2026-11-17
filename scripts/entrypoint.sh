@@ -130,6 +130,27 @@ if [ -d "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}" ]; then
     cp -f /etc/claude/CLAUDE.md "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}/CLAUDE.md" 2>/dev/null || true
 fi
 
+# --- 6b. remote skill-sets (docs/skills.md) --------------------------------
+# Host-fetched whole checkouts under /run/remote-skills (read-only bind,
+# written by `make update-sandbox-skills`). Each /run/remote-skills/<src>/
+# skills/<name> holding a SKILL.md gets a managed symlink into the
+# persistent config volume — absolute, so repo-relative references inside
+# SKILL.md (e.g. agent-skills' shared references/) keep resolving. Skills
+# that exist and are NOT symlinks (locally developed) are never touched.
+cfg="${CLAUDE_CONFIG_DIR:-/home/dev/.claude}"
+if [ -d /run/remote-skills ] && [ -n "$(ls -A /run/remote-skills 2>/dev/null || true)" ]; then
+    mkdir -p "$cfg/skills"
+    for src in /run/remote-skills/*/skills/*; do
+        [ -f "$src/SKILL.md" ] || continue
+        name="$(basename "$src")"
+        link="$cfg/skills/$name"
+        if [ -e "$link" ] && [ ! -L "$link" ]; then
+            continue
+        fi
+        ln -sfn "$src" "$link"
+    done
+fi
+
 # --- 7. signing key age (warn only at session start) ----------------------
 if [ "${EGRESS_MODE:-allowlist}" != "learning" ]; then
     check-key-age --context session || true

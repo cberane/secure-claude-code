@@ -70,6 +70,11 @@ services:
       # mints it stays host-side; `make gh-renew` rotates this file live.
       # Learning mode strips it automatically (compose.learning.yml override).
       - ./secrets/github-space/:/run/secrets/github-space/:ro
+      # Remote skill-sets (docs/skills.md) — read-only whole checkouts
+      # written by `make update-sandbox-skills` (host git fetch); the
+      # entrypoint links each skills/<name> with a SKILL.md into the
+      # persistent config volume at session start. Empty dir = none.
+      - ./skills-remote/:/run/remote-skills/:ro
       # Public half of the local dev CA ONLY (docs/https.md) — the ca.key
       # next to it stays host-side; leafs are minted by `make cert`.
       - ./secrets/dev-ca/public/:/run/secrets/dev-ca/:ro
