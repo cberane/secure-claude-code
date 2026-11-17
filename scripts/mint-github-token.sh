@@ -114,13 +114,15 @@ mint_once() {
     command -v jq >/dev/null || { fail "jq is required to read the mint response (scripts/preflight.sh installs it)"; return 1; }
 
     # "repositories" is MANDATORY here: without it the token covers every
-    # repo the installation can reach (installation-default scope).
+    # repo the installation can reach (installation-default scope). The API
+    # takes repo NAMES only — the installation already pins the owner — so
+    # "acme/keep" from GITHUB_REPO is sent as "keep".
     repos_json="["
     local first=2 r
     for r in ${repos//,/ }; do
         [ "$first" = 2 ] || repos_json="$repos_json,"
         first=0
-        repos_json="$repos_json\"$r\""
+        repos_json="$repos_json\"${r##*/}\""
     done
     [ "$first" = 0 ] || { fail "GITHUB_REPO is empty — refusing to mint an unscoped token"; return 1; }
     repos_json="$repos_json]"
