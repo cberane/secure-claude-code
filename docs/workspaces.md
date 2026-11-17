@@ -34,6 +34,33 @@ the settings shared by every workspace (engine, UID/GID, git identity,
 model backend) and `workspaces/secrets.env` for API keys. Everything under
 `workspaces/` is machine-local and gitignored, exactly like `.env` itself.
 
+## Repo-anchored workspaces (preferred)
+
+A workspace definition is mostly project-truth — which belongs in the
+repo, not in a machine-local sidecar that dies with the machine. For any
+git checkout, prefer:
+
+```sh
+make add-workspace PROJECT=~/projects/<repo>   # WS=<custom-name> optional
+```
+
+The first call seeds a committed `.secure-container/` folder in the
+project repo (README.md, `workspace.env` with TOOLCHAINS/EGRESS and the
+optional GITHUB_* scope, docs at [docs/github.md](github.md)) — review,
+adjust and commit it. The machine-local `workspaces/<name>.env` then holds
+only a reference (`SECURE_PROJECT_PATH=<abs path>`) plus machine-only
+overrides (memory limits etc.); secrets stay in `workspaces/secrets.env`,
+as always. A lost machine or a fresh clone is recovered by the same one
+`add-workspace` command — the configuration itself traveled with the repo.
+
+Merge order (later wins): `common.env` → `<repo>/.secure-container/
+workspace.env` → `<name>.env` → `secrets.env`. `PROJECTS_DIR` derives from
+`SECURE_PROJECT_PATH` (the checkout IS the mounted `/workspace`).
+`PROJECTS_DIR=/home/you/projects/my-project` as-is works too; a per-project
+egress file (`<project>/egress/allowlist.txt`) can exist for either model.
+
+`new-workspace` remains for local-only scratch workspaces (no repo).
+
 ## Files
 
 | File | Role |

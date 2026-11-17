@@ -99,6 +99,32 @@ git config --global --add safe.directory '/workspace/*'
 git config --global credential.helper ""
 git config --global core.fsmonitor false
 
+# --- 5b. GitHub scope: token-backed credential helper (docs/github.md) ------
+# Active only when the workspace's merged config declares one (the GITHUB_*
+# keys reach the container via compose env_file — no extra plumbing). The
+# mounted token is read fresh on every git call, so host-side rotation
+# (make gh-renew, 1 h installation tokens) applies without a restart. The
+# hard boundary is the token's mint-time repositories scope; this helper is
+# transport convenience. SSH remote URLs never authenticate (no SSH keys in
+# the sandbox, and ssh.github.com stays proxy-denied in every mode).
+GITHUB_SPACE=/run/secrets/github-space
+if [ "${EGRESS_MODE:-allowlist}" = "learning" ] && [ -n "${GITHUB_APP_ID:-}" ]; then
+    die "EGRESS_MODE=learning together with a GITHUB scope is not allowed — switch to a workspace without a scope (docs/github.md)"
+fi
+if [ -d "$GITHUB_SPACE" ]; then
+    found="$(grep -rl -- 'PRIVATE KEY' "$GITHUB_SPACE" 2>/dev/null || true)"
+    [ -z "$found" ] || die "key material found in $GITHUB_SPACE — only the 1h token may exist there: $found"
+    if [ -n "${GITHUB_APP_ID:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
+        git config --global credential.https://github.com.helper /usr/local/bin/gh-space-cred
+        git config --global credential.https://media.githubusercontent.com.helper /usr/local/bin/gh-space-cred
+        git config --global credential.https://objects.githubusercontent.com.helper /usr/local/bin/gh-space-cred
+        if [ ! -s "$GITHUB_SPACE/token" ]; then
+            echo "note: GITHUB scope active, no token mounted yet — mint on the HOST with" >&2
+            echo "      'make gh-token' (human) or 'make gh-renew' (long session). Pushes fail until then." >&2
+        fi
+    fi
+fi
+
 # --- 6. agent rules into the persistent Claude config volume --------------
 if [ -d "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}" ]; then
     cp -f /etc/claude/CLAUDE.md "${CLAUDE_CONFIG_DIR:-/home/dev/.claude}/CLAUDE.md" 2>/dev/null || true

@@ -76,9 +76,28 @@ RUN userdel -r node \
 # npm prefix, never as root.
 COPY --from=builder --chown=dev:dev /npm-global /home/dev/.npm-global
 
+# gh CLI for the scoped GitHub flow (docs/github.md), version-pinned like
+# the docker CLI: the deb has no single-vendor checksum feed — the sha256
+# below was computed at pin time (trust on first download, verified per
+# build). Bump via .claude/skills/update-image.
+ARG GH_CLI_VERSION=2.104.0
+ARG GH_CLI_SHA256=f90d578cbc4c3b067dfc4a1a540cef41faef64eebfb280b548ab32455977a21f
+
+RUN curl -fsSLo /tmp/gh.deb \
+        "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb" \
+    && echo "${GH_CLI_SHA256}  /tmp/gh.deb" | sha256sum -c - \
+    && dpkg -i /tmp/gh.deb \
+    && rm -f /tmp/gh.deb
+
 # Git wrapper shadows /usr/bin/git and blocks network subcommands
 # (push/pull/fetch/clone/...). /usr/local/bin precedes /usr/bin in PATH.
 COPY --chmod=0755 scripts/git-wrapper.sh /usr/local/bin/git
+
+# GitHub space plumbing (docs/github.md): the credential helper is wired by
+# the entrypoint only when a GITHUB scope is active; the gh wrapper
+# PATH-shadows /usr/bin/gh and reads the 1h token on every invocation.
+COPY --chmod=0755 scripts/gh-space-cred.sh /usr/local/bin/gh-space-cred
+COPY --chmod=0755 scripts/gh-wrapper.sh /usr/local/bin/gh
 
 # Container-side git hooks (core.hooksPath) — enforce commit-message policy
 # and signing-key age without polluting the mounted project repo.

@@ -3,15 +3,25 @@
 You are running inside a hardened container. These rules are enforced by
 tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
 
-## Git: commits are local, remotes are host-only
+## Git: commits are local; remotes are scope-gated
 
 - You MAY: `git add`, `commit`, `status`, `log`, `diff`, `branch`, `merge`,
   local `rebase`, `stash`, `tag`.
-- You MUST NOT: `push`, `pull`, `fetch`, `clone`, `remote add`,
-  `remote set-url`, `submodule update --remote`, `request-pull`. These are
-  blocked by a git wrapper and the egress proxy.
-- When a push/pull/fetch is needed: **STOP**. Print the exact command the
-  user must run on the host, e.g.
+- Without a GITHUB scope (no `GITHUB_APP_ID` in the environment) remotes are
+  host-only: you MUST NOT `push`, `pull`, `fetch`, `clone`, `remote add`,
+  `remote set-url`, `submodule update --remote`, `request-pull`. The git
+  wrapper blocks them and the egress proxy denies the hosts.
+- WITH a GITHUB scope and its mounted token (the helper does the auth
+  automatically): you MAY `push`, `pull`, `fetch`, `ls-remote` over HTTPS to
+  the repos named in `$GITHUB_REPO` — for PRs, CI pushes, issue work etc.
+  Use the `gh` CLI (token is picked up automatically; `gh pr`, `gh issue`,
+  `gh run` all work for the scoped repo(s)). SSH transport is never usable.
+- A token lives 1 hour; the host refreshes it via `make gh-renew`. If a push
+  fails for auth, print a HOST ACTION REQUIRED box (below) asking the user
+  to run `make gh-renew` (long session) or `make gh-token` — then STOP and
+  wait. Do not retry in a loop.
+- Any other remote target (other repos, hosts, forks) stays blocked: print
+  the git wrapper's HOST ACTION REQUIRED box and wait.
 
   ```
   ┌─ HOST ACTION REQUIRED ────────────────────────────────
@@ -48,14 +58,17 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
 
 ## Environment constraints (informational)
 
-- Network egress is restricted to an allowlist (Anthropic API, npm).
-  Unreachable hosts are blocked by policy, not broken. If a request fails
-  with a proxy 403 or "CONNECT tunnel failed": do NOT debug or retry.
-  Run `blocked-domains` (pass additional needed domains as arguments) —
-  it lists every domain the proxy denied since its last restart. Print its
-  HOST ACTION REQUIRED box verbatim, then **STOP and wait for the user to
-  confirm** the allowlist change and proxy restart — the same protocol as
-  git remote operations.
+- Network egress is restricted to an allowlist. Unreachable hosts are
+  blocked by policy, not broken. If a request fails with a proxy 403 or
+  "CONNECT tunnel failed": do NOT debug or retry. Run `blocked-domains`
+  (pass additional needed domains as arguments) — it lists every domain the
+  proxy denied since its last restart. To request a new domain, append it
+  WITH A REASON to `/workspace/egress/allowlist.txt` (one squid domain per
+  line, e.g. `api.acme.dev   # why: the app's API this session tests`) —
+  that file is versioned in the project repo. Then print a HOST ACTION
+  REQUIRED box asking the user to run `make reload-egress` on the host, and
+  **STOP and wait** for confirmation — the same protocol as git remote
+  operations. Never add git remote hosts to that file.
 - Only `/workspace`, `/tmp` and `~/.claude` are writable.
 - When docker is available (`docker` CLI + dind sidecar): image pulls are
   restricted to an allowlist. If a pull fails with a 403/Forbidden, do NOT
