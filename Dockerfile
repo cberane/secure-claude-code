@@ -89,6 +89,21 @@ RUN curl -fsSLo /tmp/gh.deb \
     && dpkg -i /tmp/gh.deb \
     && rm -f /tmp/gh.deb
 
+# graphifyy — knowledge-graph CLI for codebases/docs (Graphify-Labs/graphify).
+# Python >=3.11,<3.15 — trixie ships 3.13, no extra toolchain needed. Installed
+# via Debian's pipx into /usr/local/bin (no astral curl-pipe installer here);
+# PyPI-version pin follows the same rationale as the apt packages (signed
+# index, no vendor checksum feed). The per-assistant registration stays a
+# runtime step ('graphify install' writes into ~/.claude — user state).
+ARG GRAPHIFY_VERSION=0.9.112
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pipx \
+    && rm -rf /var/lib/apt/lists/* \
+    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin \
+       pipx install "graphifyy==${GRAPHIFY_VERSION}" \
+    && rm -rf /opt/pipx/cache
+
 # Git wrapper shadows /usr/bin/git and blocks network subcommands
 # (push/pull/fetch/clone/...). /usr/local/bin precedes /usr/bin in PATH.
 COPY --chmod=0755 scripts/git-wrapper.sh /usr/local/bin/git

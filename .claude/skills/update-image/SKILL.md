@@ -17,6 +17,7 @@ sandbox.
 | `node:24-trixie-slim@sha256:…` | `Dockerfile` | `ARG NODE_IMAGE=` |
 | `@anthropic-ai/claude-code` version | `Dockerfile` | `ARG CLAUDE_CODE_VERSION=` |
 | gh CLI version + sha256 | `Dockerfile` | `ARG GH_CLI_VERSION=` / `ARG GH_CLI_SHA256=` — deb: `gh_<ver>_linux_amd64.deb` from `cli/cli` releases |
+| graphifyy (graphify CLI) version | `Dockerfile` | `ARG GRAPHIFY_VERSION=` — PyPI package, installed via Debian pipx |
 | Composer version + sha256 | `Dockerfile` | `ARG COMPOSER_VERSION=` / `ARG COMPOSER_SHA256=` |
 | Docker CLI version + sha256 | `Dockerfile` | `ARG DOCKER_CLI_VERSION=` / `ARG DOCKER_CLI_SHA256=` |
 | Compose plugin version + sha256 | `Dockerfile` | `ARG COMPOSE_PLUGIN_VERSION=` / `ARG COMPOSE_PLUGIN_SHA256=` |
