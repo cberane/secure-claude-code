@@ -29,7 +29,7 @@ principal="${principal:-${USER:-dev}@$(hostname)}"
 confirm_registration() {
     # Interactive only: mark the key as registered at the forge.
     if [ "${NONINTERACTIVE:-0}" = "1" ] || [ ! -t 0 ]; then
-        echo "Non-interactive run: register the key at your forge, then run 'make keygen' again to confirm."
+        echo "Non-interactive run: register the key at your forge, then run 'scc tls keygen' again to confirm."
         return 0
     fi
     printf 'Key registered at the forge as a SIGNING key? [y/N] '
@@ -41,7 +41,7 @@ confirm_registration() {
         rm -f "$tmp"
         echo "Recorded registered_at in key.meta."
     else
-        echo "Skipped. You will be asked again on the next make invocation."
+        echo "Skipped. You will be asked again on the next run that needs the signing key."
     fi
 }
 

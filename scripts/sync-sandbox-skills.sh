@@ -73,5 +73,5 @@ done < "$SOURCES"
 [ -n "$synced" ] || die "no sources declared in $SOURCES"
 
 echo "synced:$synced"
-echo "New sessions pick the skills up on start (make claude / scc claude)."
+echo "New sessions pick the skills up on start (scc claude / scc yolo / scc shell)."
 echo "A RUNNING session can be re-linked by restarting it."

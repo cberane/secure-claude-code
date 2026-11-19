@@ -26,8 +26,36 @@ make claude                              # work
 
 ```sh
 make workspaces                          # list definitions, active one marked
+make ws-prune                            # remove definitions whose project folder is gone
+                                         # (dry run without a tty; FORCE=1 skips the prompt)
+make ws-rm NAME=x                        # remove ONE definition (asks which if NAME is empty;
+                                         # FORCE=1 skips the prompt; project repo untouched)
 scripts/workspace.sh current             # active workspace + sync status
+scripts/workspace.sh sync [name]         # one-line .env sync verdict (exit 1 when stale)
+scc status [~/projects/<repo>]           # same, folded into the per-project overview
+scc ws prune                             # same as make ws-prune
+scc ws rm NAME                           # same as make ws-rm NAME=x
 ```
+
+Prune never touches `common`/`secrets`, definitions whose folder still
+exists, or the **active** workspace — even when its folder is gone (the
+generated `.env` still references it; `scc switch <other>` first). It also
+removes orphaned allowlist fragments (`<name>.allowlist.txt` without a
+matching definition). Repo-anchored definitions lose nothing when pruned:
+the profile travels with the repo in `.secure-container/`, so
+`scc init <path>` re-registers if the folder returns.
+
+`ws rm` removes only machine-local files (`workspaces/<name>.env` and its
+allowlist fragment) — the project repo's committed `.secure-container/` is
+never touched, and the **active** workspace is refused (switch away
+first). Both commands name-check candidates exactly like `ws list` shows
+them: `common`/`secrets` are unreachable by construction.
+
+**One project path, one definition.** Registering a path that already has
+a workspace under a different name is refused as a duplicate (`scc ws add`
+and `scc ws new` both guard this); re-running `scc add`/`scc init` with
+the same path and name is idempotent — it reports "nothing to do" instead
+of failing.
 
 The first `make new-workspace` also creates `workspaces/common.env` with
 the settings shared by every workspace (engine, UID/GID, git identity,

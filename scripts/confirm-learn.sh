@@ -57,8 +57,8 @@ cat >&2 <<EOF
 │ RECOMMENDED instead: run learning mode in the minimal
 │ environment. On the host:
 │     set TOOLCHAINS= in .env
-│     make build
-│     make learn
+│     scc build
+│     scc egress learn
 │
 │ Proceed with toolchains active only if you understand and
 │ accept this. Type 'yes' to continue.

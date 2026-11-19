@@ -29,7 +29,7 @@ fi
 # mount; refuse to start if the two are ever combined anyway.
 if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
     [ ! -f "$SIGNING_DIR/signing_key" ] \
-        || die "EGRESS_MODE=learning but the signing key is mounted — start learning sessions via 'make learn' + make claude/yolo, never by setting the variable by hand."
+        || die "EGRESS_MODE=learning but the signing key is mounted — start learning sessions via 'scc egress learn' + scc claude/yolo, never by setting the variable by hand."
     echo "############################################################" >&2
     echo "# EGRESS LEARNING MODE — open egress, everything logged.   #" >&2
     echo "# No signing key in this session; commits are UNSIGNED.    #" >&2
@@ -37,11 +37,11 @@ if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
     echo "############################################################" >&2
 else
 [ -d "$SIGNING_DIR" ] \
-    || die "$SIGNING_DIR is missing. Run 'make keygen' on the HOST, then restart."
+    || die "$SIGNING_DIR is missing. Run 'scc tls keygen' on the HOST, then restart."
 [ -f "$SIGNING_DIR/signing_key" ] \
-    || die "$SIGNING_DIR/signing_key is missing. Run 'make keygen' on the HOST, then restart."
+    || die "$SIGNING_DIR/signing_key is missing. Run 'scc tls keygen' on the HOST, then restart."
 [ -f "$SIGNING_DIR/allowed_signers" ] \
-    || die "$SIGNING_DIR/allowed_signers is missing. Run 'make keygen' on the HOST, then restart."
+    || die "$SIGNING_DIR/allowed_signers is missing. Run 'scc tls keygen' on the HOST, then restart."
 
 mode="$(stat -c '%a' "$SIGNING_DIR/signing_key")"
 [ "$mode" = "400" ] \
@@ -120,8 +120,35 @@ if [ -d "$GITHUB_SPACE" ]; then
         git config --global credential.https://objects.githubusercontent.com.helper /usr/local/bin/gh-space-cred
         if [ ! -s "$GITHUB_SPACE/token" ]; then
             echo "note: GITHUB scope active, no token mounted yet — mint on the HOST with" >&2
-            echo "      'make gh-token' (human) or 'make gh-renew' (long session). Pushes fail until then." >&2
+            echo "      'scc token' (human) or 'scc renew' (long session). Pushes fail until then." >&2
         fi
+    fi
+fi
+
+# --- 5c. origin/HEAD bookkeeping (docs/github.md) ---------------------------
+# `git fetch` never creates refs/remotes/origin/HEAD — only git clone and
+# 'git remote set-head' do. A workspace whose checkout was not born from a
+# fresh clone boots without it, and every 'git diff origin/HEAD...' preamble
+# (e.g. /security-review) errors until someone sets it by hand. Fix it once
+# at session start, two hard guards: ONLY when the ref is missing (an
+# existing — even deliberately re-pointed — origin/HEAD is never touched),
+# and ONLY with an active GITHUB scope + mounted token (there is otherwise
+# no egress to github.com to ask). Non-fatal: a failed remote query just
+# prints the recovery line; session start never aborts.
+if [ -n "${GITHUB_APP_ID:-}" ] && [ -n "${GITHUB_REPO:-}" ] \
+    && [ -d "$GITHUB_SPACE" ] && [ -s "$GITHUB_SPACE/token" ] \
+    && git -C /workspace rev-parse --is-inside-work-tree >/dev/null 2>&1 \
+    && git -C /workspace remote get-url origin >/dev/null 2>&1 \
+    && ! git -C /workspace rev-parse -q --verify refs/remotes/origin/HEAD >/dev/null 2>&1; then
+    echo "note: refs/remotes/origin/HEAD missing (checkout not born from a clone) — asking the remote once" >&2
+    # 15s budget: session start must never hang on a proxy-denied/unreachable
+    # remote (a dropped SYN would otherwise block here for minutes).
+    if timeout 15 git -C /workspace remote set-head origin --auto >/dev/null 2>&1; then
+        head_branch="$(git -C /workspace rev-parse --abbrev-ref origin/HEAD 2>/dev/null || true)"
+        echo "note: origin/HEAD -> ${head_branch:-<remote default>} — 'git diff origin/HEAD...' resolves" >&2
+    else
+        echo "      remote unreachable — after a successful fetch run in a session:" >&2
+        echo "        git remote set-head origin --auto" >&2
     fi
 fi
 

@@ -15,7 +15,7 @@ KEY="$SIGNING_DIR/signing_key"
 META="$SIGNING_DIR/key.meta"
 SIGNERS="$SIGNING_DIR/allowed_signers"
 
-[ -f "$KEY" ] || { echo "No signing key at $SIGNING_DIR — nothing to rotate. Run 'make keygen' first." >&2; exit 1; }
+[ -f "$KEY" ] || { echo "No signing key at $SIGNING_DIR — nothing to rotate. Run 'scc tls keygen' first." >&2; exit 1; }
 [ -f "$META" ] || { echo "key.meta missing — cannot rotate safely." >&2; exit 1; }
 
 old_fingerprint="$(jq -r '.fingerprint' "$META")"
@@ -135,10 +135,10 @@ if [ "$answer" = "y" ] || [ "$answer" = "Y" ]; then
     rm -f "$tmp"
     echo "Recorded registered_at in key.meta."
 else
-    echo "Not confirmed — you will be reminded on the next make invocation."
+    echo "Not confirmed — you will be reminded again on a future run."
 fi
 
 echo
 echo "Rotation complete. Restart the sandbox to pick up the new key:"
 echo
-echo "  make restart"
+echo "  scc restart"

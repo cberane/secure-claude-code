@@ -59,7 +59,7 @@ fi
     echo "│ On the HOST, append each domain that is genuinely needed"
     echo "│ to egress/allowlist.txt, then reload the proxy:"
     echo "│"
-    echo "│   make reload-egress"
+    echo "│   scc egress reload"
     echo "│"
     echo "│ (Rebuilds and recreates only the proxy — this session and"
     echo "│  any nested containers keep running.)"

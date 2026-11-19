@@ -78,9 +78,9 @@ ensure-dev-ca: partial CA state in $DEV_CA_DIR (key or cert missing) — an
 earlier provisioning run was interrupted. The CA carries no external
 registration, so simply recreate it:
 
-    rm -r "$DEV_CA_DIR" && make certificates
+    rm -r "$DEV_CA_DIR" && scc tls certs
 
-(then re-install browser trust and run 'make renew-certs')
+(then re-install browser trust and run 'scc tls renew')
 EOF
     exit 1
 fi

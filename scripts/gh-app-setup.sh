@@ -79,8 +79,8 @@ wire_install() { # wire_install <app_id> <slug> <owner_repo> <pem_path> <sc-dir>
     secrets.env:   GITHUB_APP_KEY_PATH
 
 Next:
-    make workspace NAME=<name>
-    make gh-token        # or: make gh-renew (long session)
+    scc ws switch NAME=<name>
+    scc token            # or: scc renew (long session)
 EOF
 }
 
@@ -93,7 +93,7 @@ if [ "${1:-}" = "--wire" ]; then
     pem_in="${2:-}"
     repo="${3:-}"
     if [ -z "$pem_in" ] || [ -z "$repo" ]; then
-        die "usage: make gh-app-wire PROJECT=~/projects/<repo> KEY=<path-to-app.pem> [APP_ID=<numeric app id>]"
+        die "usage: scc gh app-rescue KEY=<path-to-app.pem> [APP_ID=<numeric app id>]  (or: make gh-app-wire PROJECT=<repo> KEY=<pem>)"
     fi
     pem_in="${pem_in/#\~/$HOME}"
     repo="${repo/#\~/$HOME}"
@@ -102,7 +102,7 @@ if [ "${1:-}" = "--wire" ]; then
     [ -d "$repo" ] || die "repo path '$repo' does not exist"
     repo="$(cd "$repo" && pwd)"
     sc="$repo/.secure-container"
-    [ -f "$sc/workspace.env" ] || die "$sc missing — run 'make add-workspace PROJECT=$repo' first"
+    [ -f "$sc/workspace.env" ] || die "$sc missing — run 'scc ws add PROJECT=$repo' first"
     owner_repo="$(printf '%s' "$(git -C "$repo" remote get-url origin 2>/dev/null || true)" \
         | sed -E 's#^(https?|ssh)://[^/@]+@?github\.com[:/]##; s#^git@github\.com:##; s#\.git$##' \
         | grep -oE '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || true)"
@@ -150,12 +150,12 @@ EOF
 fi
 
 path="${1:-}"
-[ -n "$path" ] || die "usage: make gh-app PROJECT=~/projects/<repo> [WS=<app-name>] | make gh-app-wire PROJECT=<repo> KEY=<pem>"
+[ -n "$path" ] || die "usage: scc gh app PROJECT=~/projects/<repo> [WS=<app-name>]  ·  rescue: scc gh app-rescue KEY=<pem> [APP_ID=…]"
 path="${path/#\~/$HOME}"
 [ -d "$path" ] || die "project path '$path' does not exist"
 path="$(cd "$path" && pwd)"
 sc="$path/.secure-container"
-[ -f "$sc/workspace.env" ] || die "$sc missing — run 'make add-workspace PROJECT=$path' first"
+[ -f "$sc/workspace.env" ] || die "$sc missing — run 'scc ws add PROJECT=$path' first"
 
 # --- 1. identity from the origin remote --------------------------------------
 app_name="${2:-}"
@@ -288,7 +288,7 @@ resp="$(curl -sS -m 30 -X POST \
 if ! printf '%s' "$resp" | jq -e '.id and .pem' >/dev/null 2>&1; then
     printf 'gh-app-setup: manifest conversion failed, full response:\n%s\n' \
         "$(printf '%s' "$resp" | head -c 600)" >&2
-    die "if the app WAS created (HTML flow finished), rescue it with: make gh-app-wire PROJECT=<repo> KEY=<pem>"
+    die "if the app WAS created (HTML flow finished), rescue it with: scc gh app-rescue KEY=<pem> [APP_ID=…]"
 fi
 app_id="$(printf '%s' "$resp" | jq -r .id)"
 slug="$(printf '%s' "$resp" | jq -r '.slug // empty')"

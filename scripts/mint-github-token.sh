@@ -99,7 +99,7 @@ mint_once() {
     perms="${perms:-contents,pull_requests,issues,administration}"
     key="$(env_get "$SECRETS_FILE" GITHUB_APP_KEY_PATH)"
 
-    [ -n "$app_id" ] || fail "no GITHUB scope in .env — switch to a scoped workspace first (make workspace NAME=<name>)" || return 1
+    [ -n "$app_id" ] || fail "no GITHUB scope in .env — switch to a scoped workspace first (scc ws switch NAME=<name>)" || return 1
     { [ -n "$inst" ] && [ -n "$repos" ]; } || fail "incomplete GITHUB scope in .env" || return 1
     [ -n "$key" ] || fail "$SECRETS_FILE needs GITHUB_APP_KEY_PATH=<path to the app .pem>" || return 1
     [ -f "$key" ] || fail "app key not found at '$key'" || return 1
@@ -205,7 +205,7 @@ case "$cmd" in
         mkdir -p secrets/github-space
         echo "gh-renew: refreshing the token every ~50 min while the session runs."
         echo "          Stop with Ctrl-C; stops itself when claude-session is gone."
-        session_running || die "no claude-session container is running — start the session first (make claude / make yolo)"
+        session_running || die "no claude-session container is running — start the session first (scc claude / scc yolo)"
         mint_once || exit 1
         while session_running; do
             interval=3000

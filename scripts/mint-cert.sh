@@ -10,7 +10,7 @@
 # build/up/session start and manual via `make renew-certs`.
 set -euo pipefail
 
-usage="usage: mint-cert.sh <domain> <out-dir> [basename]   (make cert DOMAIN=myapp.test [DIR=subdir])"
+usage="usage: mint-cert.sh <domain> <out-dir> [basename]   (scc tls cert DOMAIN=myapp.test [DIR=subdir])"
 domain="${1:?$usage}"
 out_dir="${2:?$usage}"
 base="${3:-}"
@@ -25,7 +25,7 @@ CERT_DAYS="${CERT_DAYS:-3}"
 command -v openssl >/dev/null 2>&1 || {
     echo "mint-cert: 'openssl' is required on the host." >&2; exit 1; }
 if [ ! -f "$CA_KEY" ] || [ ! -f "$CA_CRT" ]; then
-    echo "mint-cert: no dev CA at $DEV_CA_DIR — run 'make certificates' first." >&2
+    echo "mint-cert: no dev CA at $DEV_CA_DIR — run 'scc tls certs' first." >&2
     exit 1
 fi
 

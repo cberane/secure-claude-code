@@ -93,6 +93,18 @@ every mode.
 Token expired and no refresher? Pushes fail with the helper's hint — run
 `make gh-renew` / `make gh-token` on the host.
 
+### origin/HEAD bookkeeping
+
+`git fetch` never creates `refs/remotes/origin/HEAD` — only `git clone`
+and `git remote set-head` do. A workspace whose checkout wasn't born from
+a fresh clone therefore boots without it, and anything diffing
+`origin/HEAD...` (e.g. the /security-review preamble) errors on it. The
+container entrypoint closes this once per session, only when a scope and
+token are active, only when the ref is MISSING (an existing one — even
+deliberately re-pointed — is never touched), with a 15 s budget; a remote
+that can't be reached just prints the recovery line
+(`git remote set-head origin --auto`) and the session starts normally.
+
 ## Egress scope
 
 `make workspace` writes `egress/allowlist.git-scope.txt` — exactly
