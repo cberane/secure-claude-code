@@ -2,7 +2,7 @@
 # Signing-key age check — single source of truth for the rotation policy.
 #
 # Called from three places:
-#   1. make claude / make shell (host, --context session)
+#   1. make claude / make shell (host, --context session; user-facing: scc claude / scc shell)
 #   2. scripts/doctor.sh          (--context doctor)
 #   3. git-hooks/pre-commit       (container, --context precommit)
 #
@@ -34,7 +34,7 @@ else
 fi
 
 if [ ! -f "$META" ]; then
-    echo "check-key-age: $META not found — run 'make keygen' on the HOST first." >&2
+    echo "check-key-age: $META not found — run 'scc tls keygen' on the HOST first." >&2
     exit 0
 fi
 
@@ -43,7 +43,7 @@ fingerprint="$(jq -r '.fingerprint // "unknown"' "$META" 2>/dev/null)"
 registered_at="$(jq -r '.registered_at // "not yet registered"' "$META" 2>/dev/null)"
 
 if [ -z "$created_at" ]; then
-    echo "check-key-age: $META has no created_at field — regenerate with 'make keygen'." >&2
+    echo "check-key-age: $META has no created_at field — regenerate with 'scc tls keygen'." >&2
     exit 0
 fi
 
@@ -61,7 +61,7 @@ print_block() {
 │
 │ Run on the HOST, then confirm here:
 │
-│   make rotate-signing-key
+│   scc tls rotate-key
 │
 ${tail}└───────────────────────────────────────────────────────
 EOF

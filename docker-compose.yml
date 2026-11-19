@@ -26,7 +26,8 @@ services:
     environment:
       # Lets doctor run the function checks matching the built toolchains.
       SANDBOX_TOOLCHAINS: ${TOOLCHAINS:-}
-      # allowlist (default) | learning — set via `make learn`, never by hand.
+      # allowlist (default) | learning — set via `scc egress learn`, never by
+      # hand.
       # In learning mode the entrypoint REFUSES to start with the signing
       # key mounted (compose.learning.yml removes it).
       EGRESS_MODE: ${EGRESS_MODE:-allowlist}
@@ -92,7 +93,8 @@ services:
         TOOLCHAINS: ${TOOLCHAINS:-}
     environment:
       # allowlist (default) | learning — the entrypoint selects the squid
-      # config accordingly. Toggled by `make learn` / `make learn-off`.
+      # config accordingly. Toggled by `scc egress learn` /
+      # `scc egress learn-off`.
       EGRESS_MODE: ${EGRESS_MODE:-allowlist}
     networks:
       sandbox:

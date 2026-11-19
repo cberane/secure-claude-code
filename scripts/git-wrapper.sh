@@ -45,7 +45,7 @@ block() {
         scope_note="│ GITHUB scope is active for: ${GITHUB_REPO}
 │ (push/pull/fetch/ls-remote over HTTPS to those repos works,
 │  token auth is automatic; expired → ask the host:
-│  make gh-renew / make gh-token — docs/github.md)
+│  scc renew / scc token — docs/github.md)
 │"
     fi
     cat >&2 <<EOF

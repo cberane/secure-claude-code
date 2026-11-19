@@ -159,7 +159,7 @@ if [ "${1:-}" = "--host" ]; then
             fi
         fi
         report 26 $ok "workspace: .env generated from '$ws_name', learning marker consistent" \
-            "rerun 'make workspace NAME=$ws_name' (docs/workspaces.md)"
+            "rerun 'scc ws switch NAME=$ws_name' (docs/workspaces.md)"
     fi
 
     # --- 29: per-project egress file honored (only when a project exists) --
@@ -183,7 +183,7 @@ if [ "${1:-}" = "--host" ]; then
             report 29 0 "project egress file merged into allowlist.project.txt"
         else
             report 29 1 "project egress file merged into allowlist.project.txt" \
-                "check $PROJECTS_DIR/egress/allowlist.txt and rerun 'make reload-egress'"
+                "check $PROJECTS_DIR/egress/allowlist.txt and rerun 'scc egress reload'"
         fi
     else
         report 29 0 "project egress file merged into allowlist.project.txt" "(no project file — nothing to merge)"
@@ -219,7 +219,7 @@ if [ "${1:-}" = "--host" ]; then
         fi
     done
     report 30 $ok "GitHub scope consistent (.env <-> scope file <-> no apex hosts in sources)" \
-        "fix via 'make workspace NAME=<active>' — docs/github.md"
+        "fix via 'scc ws switch NAME=<active>' — docs/github.md"
 
     # --- 31: git-space secrets hygiene --------------------------------------
     # The app .pem that mints tokens never enters any container or the repo;
@@ -262,7 +262,7 @@ if [ "${1:-}" = "--host" ]; then
     done
     if [ "$reclaimable" -gt 0 ]; then
         echo
-        echo "note: $reclaimable dangling image(s) from previous builds — run 'make prune' to reclaim disk space."
+        echo "note: $reclaimable dangling image(s) from previous builds — run 'scc maintain prune' to reclaim disk space."
     fi
 
     echo
@@ -284,7 +284,7 @@ fi
 # passing doctor.
 if [ "${EGRESS_MODE:-allowlist}" = "learning" ]; then
     printf "%bEGRESS LEARNING MODE ACTIVE — the hardened posture is NOT in effect.%b\n" "$RED" "$RESET"
-    printf "%bEgress and signing checks below WILL fail; run 'make learn-off' first for a meaningful result.%b\n\n" "$RED" "$RESET"
+    printf "%bEgress and signing checks below WILL fail; run 'scc egress learn-off' first for a meaningful result.%b\n\n" "$RED" "$RESET"
 fi
 
 WORK="$(mktemp -d /tmp/doctor.XXXXXX)"
@@ -362,7 +362,7 @@ if [ -n "${ANTHROPIC_BASE_URL:-}" ]; then
             [ -n "$rcode" ] && [ "$rcode" != "000" ] && break
         done
         if [ -z "$rcode" ] || [ "$rcode" = "000" ]; then
-            detail27="relay host '$host' is NOT reachable via proxy — add it to egress/allowlist.txt, then 'make reload-egress'"
+            detail27="relay host '$host' is NOT reachable via proxy — add it to egress/allowlist.txt, then 'scc egress reload'"
         elif printf '%s' "$host" | grep -Eq '(^|\.)ollama\.(com|ai)$' && [ -n "${ANTHROPIC_API_KEY:-}" ]; then
             # Ollama relays reject x-api-key — an API key set alongside the
             # token silently breaks auth.
@@ -612,7 +612,7 @@ if [ -z "${GITHUB_APP_ID:-}" ]; then
 else
     # 33: live read against the scoped repo through gh (retry for flakiness)
     ok=1
-    detail33="no token mounted — mint on the HOST (make gh-token / make gh-renew)"
+    detail33="no token mounted — mint on the HOST (scc token / scc renew)"
     if [ -s "$gh_scope" ]; then
         repo="${GITHUB_REPO%%,*}"
         full=""
@@ -622,7 +622,7 @@ else
             sleep 2
         done
         printf '%s' "$full" | grep -q "$repo" && ok=0 || \
-            detail33="gh api repos/$repo failed: $(head -1 "$WORK/gh33.err" 2>/dev/null) — a 401/Bad credentials means the mounted token EXPIRED (installation tokens live 1h): refresh with 'make gh-renew' (session running) or 'make gh-token'"
+            detail33="gh api repos/$repo failed: $(head -1 "$WORK/gh33.err" 2>/dev/null) — a 401/Bad credentials means the mounted token EXPIRED (installation tokens live 1h): refresh with 'scc renew' (session running) or 'scc token'"
     fi
     report 33 $ok "GITHUB scope: mounted token reaches the scoped repo" "$detail33"
 

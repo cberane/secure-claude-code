@@ -7,9 +7,10 @@
 # our dev CA is renewed in place (same file names, current SAN policy,
 # domain taken from the subject CN). Foreign certs are left alone.
 #
-#   --auto : hook form used by `make build/up/shell/claude/yolo` — silent
+#   --auto : hook form used by `make build/up/shell/claude/yolo`
+#            (`scc build` / `scc shell` / `scc claude` / `scc yolo`) — silent
 #            no-op when no dev CA is provisioned ("serves HTTPS" is simply
-#            'make certificates' has been run).
+#            'make certificates' (or `scc tls certs`) has been run).
 set -euo pipefail
 
 auto=0
@@ -21,7 +22,7 @@ DEV_CA_DIR="${DEV_CA_DIR:-$repo_root/secrets/dev-ca}"
 
 if [ ! -f "$DEV_CA_DIR/ca.key" ]; then
     [ "$auto" -eq 1 ] && exit 0
-    echo "renew-certs: no dev CA yet — run 'make certificates' first." >&2
+    echo "renew-certs: no dev CA yet — run 'scc tls certs' first." >&2
     exit 1
 fi
 command -v openssl >/dev/null 2>&1 || {
@@ -66,5 +67,5 @@ if [ "$renewed" -gt 0 ]; then
     echo "renew-certs: $renewed cert(s) renewed — running TLS servers keep the"
     echo "             old cert in memory; reload them (e.g. restart nginx)."
 elif [ "$auto" -eq 0 ]; then
-    echo "renew-certs: no dev-CA certs found under $PROJECTS_DIR (mint one with 'make cert DOMAIN=myapp.test')."
+    echo "renew-certs: no dev-CA certs found under $PROJECTS_DIR (mint one with 'scc tls cert DOMAIN=myapp.test')."
 fi

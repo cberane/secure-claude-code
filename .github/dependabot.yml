@@ -26,9 +26,9 @@ updates:
 #
 # * Base-image digests (Dockerfile NODE_IMAGE, egress/Dockerfile FROM) and
 #   the compose image pins are owned by the `update-image` skill, which
-#   refreshes every pin together and gates the change on `make doctor`
+#   refreshes every pin together and gates the change on `scc doctor`
 #   with automatic rollback. A Dependabot `docker` ecosystem would open
 #   digest-bump PRs that bypass that verification, so it is deliberately
 #   left off. If you ever prefer Dependabot to drive image pins, add a
 #   `package-ecosystem: docker` block — but keep running the sandbox
-#   through `make doctor` before merging such a PR.
+#   through `scc doctor` before merging such a PR.

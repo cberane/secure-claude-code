@@ -5,37 +5,39 @@
 - **Agent wrecked the project:** on the host, `git status` /
   `git restore` / `git reset --hard origin/<branch>` in `$PROJECTS_DIR`.
   That is the whole accepted blast radius.
-- **Broken sandbox state:** `make clean` (removes containers + local
-  images), then `make build`.
-- **Logged-out / corrupt Claude state:** `make distclean` also removes the
+- **Broken sandbox state:** `scc maintain clean` (removes containers +
+  local images), then `scc build`.
+- **Logged-out / corrupt Claude state:** `scc maintain distclean` also
+  removes the
   `claude-config` volume (you'll need to `/login` again).
 - **Key trouble:** keys live only under `secrets/git-signing/` on the
   host. Archived keys are in `secrets/git-signing/archive/<fingerprint>/`.
 
 ## Disk filling up
 
-`make df` shows host usage *and* the nested dind daemon's, which lives
+`scc df` shows host usage *and* the nested dind daemon's, which lives
 inside the `dind-storage` volume and is invisible to a plain
 `docker system df`. Reclaim with:
 
-| Target | Removes |
+| Command | Removes |
 |---|---|
-| `make prune` | dangling images (host) |
-| `make prune-build` | host build cache — often the largest item |
-| `make prune-dind` | stopped containers + dangling images inside dind |
-| `make clean-dind` | the whole nested image store (keeps your Claude login, unlike `distclean`) |
+| `scc maintain prune` | dangling images (host) |
+| `scc maintain prune-build` | host build cache — often the largest item |
+| `scc maintain prune-dind` | stopped containers + dangling images inside dind |
+| `scc maintain clean-dind` | the whole nested image store (keeps your Claude login, unlike `distclean`) |
 
 ## Common first-run errors
 
-- **`make preflight` fails** — it names the missing piece (engine, compose
+- **Preflight fails** (the same check runs inside `scc init` and
+  before every build/start) — it names the missing piece (engine, compose
   version, jq, `.env`, PROJECTS_DIR). Fix exactly that; every later
   target runs the same checks.
 - **"signing_key exists but key.meta is missing"** — an earlier
   provisioning run was interrupted. Delete `secrets/git-signing/` (the key
-  was never registered anywhere) and rerun `make keygen`.
+  was never registered anywhere) and rerun `scc tls keygen`.
 - **Entrypoint aborts: "signing_key is owned by uid X, expected Y"** —
   `UID`/`GID` in `.env` don't match your host user. Fix them and
-  `make build` again (they are baked in at build time; `make preflight`
+  `scc build` again (they are baked in at build time; preflight
   warns about the mismatch before it costs you a rebuild).
 - **Compose rejects the files with a schema error** — your compose plugin
   is older than 2.24 (the `env_file: {path:, required:}` long syntax).
@@ -45,14 +47,14 @@ inside the `dind-storage` volume and is invisible to a plain
   scripts read it literally.
 - **`https://…` fails with 403 / "CONNECT tunnel failed" inside the
   sandbox** — not broken, blocked by egress policy. Run `blocked-domains`
-  in the container (or `make denied` on the host) and follow
+  in the container (or `scc denied` on the host) and follow
   [egress.md](egress.md).
 - **`docker pull` inside the sandbox fails with 403** — the image is not
-  in `dind/images-allowlist.txt`. Add it, then `make reload-images`.
+  in `dind/images-allowlist.txt`. Add it, then `scc egress reload-images`.
 - **Native npm module build fails in `/tmp`** — `/tmp` is `noexec` by
   design; build inside `/workspace`.
 - **squid exits fatally (egress log full)** — needs ~100k denial lines;
-  `make reload-egress` recovers.
+  `scc egress reload` recovers.
 
 ## macOS
 

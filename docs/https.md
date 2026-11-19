@@ -5,9 +5,9 @@ workers, secure-context APIs — where a fresh self-signed cert per project
 just produces browser warnings. This repo ships a small, deliberately
 constrained PKI for that:
 
-- **One local dev CA**, created once on the host (`make certificates`),
+- **One local dev CA**, created once on the host (`scc tls certs`),
   trusted once in your browser.
-- **Per-project leaf certificates** (`make cert DOMAIN=myapp.test`),
+- **Per-project leaf certificates** (`scc tls cert DOMAIN=myapp.test`),
   valid **3 days** and renewed automatically.
 
 ## Security model
@@ -38,7 +38,7 @@ The design follows the same containment rules as the commit-signing key:
 ## Setup (once)
 
 ```console
-$ make certificates
+$ scc tls certs
 ```
 
 creates the CA (idempotent — safe to re-run; it prints the trust steps
@@ -62,7 +62,7 @@ as Administrator) or Linux (`/etc/hosts`):
 
 And enable the 8443 ingress port if you haven't: it is part of the example
 override (`docker-compose.override.example.yml`); after adding it to your
-override, apply with `make reload-ingress`.
+override, apply with `scc egress reload-ingress`.
 
 ## Per project
 
@@ -72,8 +72,8 @@ override, apply with `make reload-ingress`.
 > remains manual.
 
 ```console
-$ make cert DOMAIN=myapp.test          # writes to $PROJECTS_DIR/certs/
-$ make cert DOMAIN=api.test DIR=api    # writes to $PROJECTS_DIR/api/certs/
+$ scc tls cert DOMAIN=myapp.test          # writes to $PROJECTS_DIR/certs/
+$ scc tls cert DOMAIN=api.test DIR=api    # writes to $PROJECTS_DIR/api/certs/
 ```
 
 This mints `certs/myapp.test.crt` + `.key` (plus a copy of the public
@@ -87,14 +87,14 @@ and would be rejected by browsers anyway.
 Three days is deliberate: long enough that a YOLO session started on
 Friday still has valid HTTPS on Monday, short enough that a leaked leaf
 key ages out over a long weekend. Renewal is automatic — every
-`make build`, `make up`, `make shell/claude/yolo` re-mints **all**
+`scc build`, `scc up`, `scc shell/claude/yolo` re-mints **all**
 dev-CA-issued certs found under `$PROJECTS_DIR` (any `*/certs/*.crt`
 whose issuer is the dev CA; foreign certs are left alone). No CA yet =
 silent no-op, so nothing changes until you opt in with
-`make certificates`. Manually:
+`scc tls certs`. Manually:
 
 ```console
-$ make renew-certs
+$ scc tls renew
 ```
 
 **A running TLS server keeps the old certificate in memory.** After a
@@ -106,7 +106,7 @@ the expired cert.
 
 Add an nginx TLS terminator to the project's `docker-compose.yml`
 (nested inside dind; add the nginx image to `dind/images-allowlist.txt`
-first and run `make reload-images`):
+first and run `scc egress reload-images`):
 
 ```yaml
     nginx:
@@ -174,8 +174,8 @@ when needed: `php -d curl.cainfo="$CURL_CA_BUNDLE" ...`.
 
 ## Rotation & removal
 
-- **Rotate the CA**: `rm -r secrets/dev-ca && make certificates`, then
-  re-install browser trust and `make renew-certs` (renewal re-issues every
+- **Rotate the CA**: `rm -r secrets/dev-ca && scc tls certs`, then
+  re-install browser trust and `scc tls renew` (renewal re-issues every
   project cert under the new CA).
 - **Remove trust**: delete the CA from the stores it was added to
   (Windows: `certutil.exe -user -delstore Root "<CA common name>"`), and
@@ -187,7 +187,7 @@ when needed: `php -d curl.cainfo="$CURL_CA_BUNDLE" ...`.
 | Symptom | Cause / fix |
 |---|---|
 | `NET::ERR_CERT_AUTHORITY_INVALID` | CA not trusted in *this* browser — redo the trust step; for Firefox see the enterprise-roots note. |
-| Cert shown as expired | Leaf older than 3 days and nginx still serves the in-memory copy — `make renew-certs`, then reload nginx. |
+| Cert shown as expired | Leaf older than 3 days and nginx still serves the in-memory copy — `scc tls renew`, then reload nginx. |
 | `SEC_ERROR_UNKNOWN_ISSUER` only in Firefox | `security.enterprise_roots.enabled` not set. |
-| `curl: (60)` inside the sandbox | Session started before `make certificates` — start a fresh session so the entrypoint picks up the CA. |
-| Browser can't connect at all | 8443 missing from the override `ports:` (then `make reload-ingress`), or the hosts-file entry is missing. |
+| `curl: (60)` inside the sandbox | Session started before `scc tls certs` — start a fresh session so the entrypoint picks up the CA. |
+| Browser can't connect at all | 8443 missing from the override `ports:` (then `scc egress reload-ingress`), or the hosts-file entry is missing. |

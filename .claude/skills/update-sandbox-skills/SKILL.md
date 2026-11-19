@@ -28,7 +28,7 @@ developed by the user — this skill must never modify them.
    and surface the exact error — do not retry endlessly.
 
 3. Activation: a **new** session links them via its entrypoint
-   (`scc claude` / `make claude`). A running session only re-links on
+   (`scc claude`). A running session only re-links on
    restart — tell the user to restart the session to see updated skills.
 
 ## Add a new remote source (extensible)

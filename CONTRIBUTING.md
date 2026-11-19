@@ -23,12 +23,12 @@ prerequisite list.
 
 ```sh
 cp .env.example .env        # set PROJECTS_DIR to any test project
-make install-hooks          # REQUIRED for contributors: commit hooks
-make build
-make doctor                 # must be fully green before AND after your change
+scc tls hooks               # REQUIRED for contributors: commit hooks
+scc build
+scc doctor                  # must be fully green before AND after your change
 ```
 
-`make doctor` is the test suite: 19 hardening checks plus one function
+`scc doctor` is the test suite: 19 hardening checks plus one function
 check per enabled toolchain. There is no change small enough to skip it —
 several checks assert behavior that docs and scripts merely describe.
 To test toolchain-dependent behavior, set `TOOLCHAINS=php,python,docker`
@@ -49,7 +49,7 @@ in `.env` and rebuild; checks 20–23 activate accordingly.
 
 ## Commit messages
 
-Enforced by the commit-msg hook (`make install-hooks`):
+Enforced by the commit-msg hook (`scc tls hooks`):
 
 - Conventional Commits: `type(scope): subject` with types
   feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert.
@@ -60,7 +60,7 @@ Enforced by the commit-msg hook (`make install-hooks`):
 ## Pull requests
 
 - One logical change per PR.
-- `make doctor` green, output pasted or summarized in the PR.
+- `scc doctor` green, output pasted or summarized in the PR.
 - Docs updated in the same PR (`docs/`, README, DECISIONS.md as applicable).
 - New pinned versions (images, downloads) must be digest- or
   checksum-pinned like the existing ones — no floating tags, no

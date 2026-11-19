@@ -4,7 +4,7 @@
 # copy egress/allowlist.txt, created from this template on first `make` run.
 # Edit allowlist.txt for machine-local needs without touching git; changes
 # that every developer needs belong in this template.
-# After editing the local copy: make reload-egress
+# After editing the local copy: scc egress reload
 #
 #   example.com   matches exactly example.com
 #   .example.com  matches example.com AND all subdomains
@@ -47,7 +47,7 @@ ollama.com
 # NOTE: enabled toolchains (TOOLCHAINS in .env, e.g. "php,python") append
 # their domains AUTOMATICALLY at proxy build time (see egress/allowlist.d/);
 # editing the list enables/disables them on the next
-# `make reload-egress`. Add entries below only for needs beyond
+# `scc egress reload`. Add entries below only for needs beyond
 # the built-in toolchains.
 
 # --- Laravel Sail (TOOLCHAINS=php,docker) ------------------------------

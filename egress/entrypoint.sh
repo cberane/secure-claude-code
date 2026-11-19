@@ -13,11 +13,11 @@ install -m 0644 /etc/squid/allowlist.txt /var/log/squid/allowlist-base.txt
 
 case "${EGRESS_MODE:-allowlist}" in
     learning)
-        echo "############################################################" >&2
-        echo "# EGRESS LEARNING MODE — allowlist NOT enforced.           #" >&2
-        echo "# Everything except LAN + git hosts is reachable & logged. #" >&2
-        echo "# Distill with 'make learned'; leave with 'make learn-off'.#" >&2
-        echo "############################################################" >&2
+        echo "##########################################################################" >&2
+        echo "# EGRESS LEARNING MODE — allowlist NOT enforced.                         #" >&2
+        echo "# Everything except LAN + git hosts is reachable & logged.               #" >&2
+        echo "# Distill with 'scc egress learned'; leave with 'scc egress learn-off'. #" >&2
+        echo "##########################################################################" >&2
         exec squid -N -f /etc/squid/squid.conf.learning
         ;;
     allowlist)

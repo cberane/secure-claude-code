@@ -16,9 +16,9 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   the repos named in `$GITHUB_REPO` — for PRs, CI pushes, issue work etc.
   Use the `gh` CLI (token is picked up automatically; `gh pr`, `gh issue`,
   `gh run` all work for the scoped repo(s)). SSH transport is never usable.
-- A token lives 1 hour; the host refreshes it via `make gh-renew`. If a push
+- A token lives 1 hour; the host refreshes it via `scc renew`. If a push
   fails for auth, print a HOST ACTION REQUIRED box (below) asking the user
-  to run `make gh-renew` (long session) or `make gh-token` — then STOP and
+  to run `scc renew` (long session) or `scc token` — then STOP and
   wait. Do not retry in a loop.
 - Any other remote target (other repos, hosts, forks) stays blocked: print
   the git wrapper's HOST ACTION REQUIRED box and wait.
@@ -62,19 +62,34 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   blocked by policy, not broken. If a request fails with a proxy 403 or
   "CONNECT tunnel failed": do NOT debug or retry. Run `blocked-domains`
   (pass additional needed domains as arguments) — it lists every domain the
-  proxy denied since its last restart. To request a new domain, append it
-  WITH A REASON to `/workspace/egress/allowlist.txt` (one squid domain per
-  line, e.g. `api.acme.dev   # why: the app's API this session tests`) —
-  that file is versioned in the project repo. Then print a HOST ACTION
-  REQUIRED box asking the user to run `make reload-egress` on the host, and
-  **STOP and wait** for confirmation — the same protocol as git remote
-  operations. Never add git remote hosts to that file.
+  proxy denied since its last restart. To request a new domain, print a
+  HOST ACTION REQUIRED box containing the EXACT line to append, WITH A
+  REASON (one squid domain per line, e.g.
+  `api.acme.dev   # why: the app's API this session tests`) and the host
+  path of the file (`<PROJECTS_DIR>/egress/allowlist.txt`), asking the
+  user to add it and run `scc egress reload` on the host — then **STOP and
+  wait** for confirmation, the same protocol as git remote operations.
+  Do NOT edit that file yourself: writes to `egress/` and
+  `.secure-container/` are denied by the project's Claude settings (both
+  hold committed repo truth — the perimeter belongs to the host).
+  Never request git remote hosts.
+- In LEARNING mode (`EGRESS_MODE=learning`) egress is OPEN to the public
+  internet and goes through TRANSPARENTLY: no allowlist protocol, no
+  blocked-domains box, no HOST ACTION for network failures. Evidence you
+  already have beats the rule: if other public hosts fetched fine in this
+  session, egress is open and a failing host is simply DNS-dead or down —
+  report "host unreachable" and move on. (A real policy denial logs as
+  TCP_DENIED in the proxy log; a DNS failure shows as 503/HIER_NONE.)
+  Domains actually used in this mode are collected by the host with
+  `scc egress learned` and curated into the allowlist there — that is the
+  ONLY place egress decisions get made in learning mode. Only the two
+  permanent denies still apply: LAN and git remote hosts.
 - Only `/workspace`, `/tmp` and `~/.claude` are writable.
 - When docker is available (`docker` CLI + dind sidecar): image pulls are
   restricted to an allowlist. If a pull fails with a 403/Forbidden, do NOT
   retry or work around it — print a HOST ACTION REQUIRED box asking the
   user to add the image to `dind/images-allowlist.txt` on the host and run
-  `make reload-images`, then **STOP and wait for confirmation**.
+  `scc egress reload-images`, then **STOP and wait for confirmation**.
 
 ### Nested compose builds: the egress proxy is automatic
 
@@ -117,11 +132,11 @@ tooling (git wrapper, hooks, egress proxy) — do not try to work around them.
   `<project>/certs/` (`myapp.test.crt`/`.key`, valid 3 days, SANs include
   `dind` and `localhost`; `ca.crt` alongside is the public CA cert). If a
   cert is missing or expired, print a HOST ACTION REQUIRED box asking the
-  user to run `make cert DOMAIN=myapp.test` (new) or `make renew-certs`
+  user to run `scc tls cert DOMAIN=myapp.test` (new) or `scc tls renew`
   (expired), then **STOP and wait** — and remind them to reload nginx
   after a renewal, since it keeps the old cert in memory. Test HTTPS from
   inside the sandbox with `curl https://dind:8443` (the dev CA is already
   trusted via SSL_CERT_FILE/CURL_CA_BUNDLE/NODE_EXTRA_CA_CERTS); the
   user's browser uses `https://myapp.test:8443`.
 - If the pre-commit hook reports the signing key as too old, stop and ask
-  the user to run `make rotate-signing-key` on the host.
+  the user to run `scc tls rotate-key` on the host.

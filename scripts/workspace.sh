@@ -10,9 +10,9 @@
 #     (.secure-container/egress/allowlist.txt, "# why"-documented). The
 #     machine-local workspaces/<name>.env then only holds a reference
 #     (SECURE_PROJECT_PATH=<abs host path>) plus machine-only overrides.
-#     Created with: make add-workspace PROJECT=~/projects/<name>
+#     Created with: scc ws add PROJECT=~/projects/<name>
 #   * machine-local (legacy): the whole definition lives in
-#     workspaces/<name>.env as before. Created with: make new-workspace.
+#     workspaces/<name>.env as before. Created with: scc ws new NAME=<name>.
 #
 # The merge chain is: workspaces/common.env →
 # <SECURE_PROJECT_PATH>/.secure-container/workspace.env → workspaces/<name>.env
@@ -23,6 +23,7 @@
 #
 #   scripts/workspace.sh list              — definitions, active one marked
 #   scripts/workspace.sh current          — active workspace + sync status
+#   scripts/workspace.sh sync [name]      — one-line sync verdict (for scc status)
 #   scripts/workspace.sh new <name>       — machine-local definition
 #   scripts/workspace.sh add <path> [nm]  — register a repo-anchored one
 #   scripts/workspace.sh switch <name>    — regenerate .env and apply
@@ -71,6 +72,32 @@ SCOPE_DOMAINS=(
 )
 
 die() { printf 'workspace: %s\n' "$*" >&2; exit 1; }
+
+# dup_check <resolved-path> <requested-name> — one project path, ONE
+# definition. Registering the same path under a different name would mount
+# one project twice with two different postures (egress/tools) — refused.
+# Exit codes: 0 = no duplicate; 3 = same name + same path (idempotent hit);
+# 2 = duplicate under a different name (die).
+dup_check() {
+    local path="$1" name="$2" f other_name other_path
+    for f in "$WS_DIR"/*.env; do
+        [ -f "$f" ] || continue
+        other_name="$(basename "$f" .env)"
+        if [ "$other_name" = common ] || [ "$other_name" = secrets ]; then continue; fi
+        other_path="$(env_get "$f" SECURE_PROJECT_PATH)"
+        [ -n "$other_path" ] || other_path="$(env_get "$f" PROJECTS_DIR)"
+        other_path="${other_path/#\~/$HOME}"
+        if [ "$other_path" = "$path" ]; then
+            if [ "$other_name" = "$name" ]; then
+                echo "workspace: already registered as '$name' — nothing to do (idempotent)"
+                echo "  apply/update with: scc ws switch NAME=$name"
+                return 3
+            fi
+            die "duplicate: '$path' is already registered as workspace '$other_name' — one project path, one definition. Remove it first (scc ws rm $other_name) or register a different path"
+        fi
+    done
+    return 0
+}
 
 # Last assignment of a key in an env file, compose-style quote stripping.
 env_get() { # env_get <file> <key>
@@ -178,8 +205,8 @@ cmd_list() {
     local active="" f name mark tc eg pd sp
     [ -f "$ACTIVE_MARKER" ] && active="$(cat "$ACTIVE_MARKER")"
     if ! ls "$WS_DIR"/*.env >/dev/null 2>&1; then
-        echo "No workspace definitions yet — for a project repo: make add-workspace PROJECT=~/projects/<name>"
-        echo "                                (machine-local, no repo: make new-workspace NAME=<name>)"
+        echo "No workspace definitions yet — for a project repo: scc ws add PROJECT=~/projects/<name>"
+        echo "                                (machine-local, no repo: scc ws new NAME=<name>)"
         return 0
     fi
     for f in "$WS_DIR"/*.env; do
@@ -195,7 +222,7 @@ cmd_list() {
         printf '%s %-20s toolchains=%-18s egress=%-9s %s\n' \
             "$mark" "$name" "${tc:-<repo profile>}" "${eg:-<repo profile>}" "$pd"
     done
-    [ -n "$active" ] && echo "(* = active; switch with: make workspace NAME=<name>)"
+    [ -n "$active" ] && echo "(* = active; switch with: scc ws switch NAME=<name>)"
 }
 
 ########################################################################
@@ -204,7 +231,7 @@ cmd_list() {
 cmd_current() {
     if [ ! -f "$ACTIVE_MARKER" ]; then
         echo "No active workspace — .env is managed by hand (legacy mode)."
-        echo "Adopt it with: make new-workspace NAME=<name> && make workspace NAME=<name>"
+        echo "Adopt it with: scc ws new NAME=<name> && scc ws switch NAME=<name>"
         return 0
     fi
     local name stored actual
@@ -212,22 +239,64 @@ cmd_current() {
     echo "Active workspace: $name"
     [ -f "$WS_DIR/$name.env" ] || { echo "WARNING: workspaces/$name.env is missing."; return 1; }
     if [ ! -f "$ENV_FILE" ] || ! grep -q '^# workspace:' "$ENV_FILE"; then
-        echo "WARNING: .env is not workspace-generated — rerun: make workspace NAME=$name"
+        echo "WARNING: .env is not workspace-generated — rerun: scc ws switch NAME=$name"
         return 1
     fi
     stored="$(sed -n 's/^# sha256: //p' "$ENV_FILE" | head -1)"
     actual="$(payload "$ENV_FILE" | sha_of)"
     if [ "$stored" != "$actual" ]; then
         echo "WARNING: .env was edited by hand since generation — fold the edit into"
-        echo "         workspaces/$name.env, then rerun: make workspace NAME=$name"
+        echo "         workspaces/$name.env, then rerun: scc ws switch NAME=$name"
         return 1
     fi
     if [ "$(merged_for "$name")" != "$(payload "$ENV_FILE")" ]; then
         echo "Definition or project config (.secure-container/) changed since last"
-        echo "switch — apply with: make workspace NAME=$name"
+        echo "switch — apply with: scc ws switch NAME=$name"
     else
         echo ".env is in sync with the definition."
     fi
+}
+
+# one-line sync verdict of a workspace against the generated .env — the
+# machine-readable core of cmd_current, for embedding (scc status). One
+# line to stdout, "in sync"/"stale" in the wording; exit 0 in sync, 1
+# stale, 2 not applicable. Only an ACTIVE workspace has applied state
+# to compare against .env — anything else is reported, not measured.
+cmd_sync() {
+    local name="${1:-}"
+    if [ -z "$name" ]; then
+        [ -f "$ACTIVE_MARKER" ] || { echo "sync: no active workspace"; exit 2; }
+        name="$(cat "$ACTIVE_MARKER")"
+    fi
+    local active
+    active=""
+    if [ -f "$ACTIVE_MARKER" ]; then
+        active="$(cat "$ACTIVE_MARKER" 2>/dev/null)" || true
+    fi
+    if [ "$active" != "$name" ]; then
+        echo "sync: $name is not the active workspace (active: ${active:-none})"
+        exit 2
+    fi
+    if [ ! -f "$WS_DIR/$name.env" ]; then
+        echo "sync: workspaces/$name.env is missing — stale"
+        exit 1
+    fi
+    if [ ! -f "$ENV_FILE" ] || ! grep -q '^# workspace:' "$ENV_FILE"; then
+        echo "sync: $name — .env is not workspace-generated — stale"
+        exit 1
+    fi
+    local stored actual
+    stored="$(sed -n 's/^# sha256: //p' "$ENV_FILE" | head -1)"
+    actual="$(payload "$ENV_FILE" | sha_of)"
+    if [ "$stored" != "$actual" ]; then
+        echo "sync: $name — .env was hand-edited since generation — stale"
+        exit 1
+    fi
+    if [ "$(merged_for "$name")" != "$(payload "$ENV_FILE")" ]; then
+        echo "sync: $name — definition or project config changed since last switch — stale"
+        exit 1
+    fi
+    echo "sync: $name — .env in sync with the definition"
 }
 
 ########################################################################
@@ -235,13 +304,21 @@ cmd_current() {
 ########################################################################
 cmd_new() {
     local name="${1:-}"
-    [ -n "$name" ] || die "usage: scripts/workspace.sh new <name>  (or: make new-workspace NAME=<name>)"
+    [ -n "$name" ] || die "usage: scripts/workspace.sh new <name>  (or: scc ws new NAME=<name>)"
     printf '%s' "$name" | grep -Eq '^[a-z0-9][a-z0-9-]*$' \
         || die "name must be kebab-case: lowercase letters, digits, dashes ('$name')"
     [ "$name" = common ] && die "'common' is reserved for workspaces/common.env"
     local ws="$WS_DIR/$name.env"
     [ -f "$ws" ] && die "$ws already exists — edit it, or pick another name"
     mkdir -p "$WS_DIR"
+
+    # duplicate prevention: the seeded path must not already have a definition
+    local seed_pd seed_tc
+    seed_pd="$(env_get "$ENV_FILE" PROJECTS_DIR)"
+    seed_tc="$(env_get "$ENV_FILE" TOOLCHAINS)"
+    if [ -n "$seed_pd" ]; then
+        dup_check "$seed_pd" "$name" || exit $?
+    fi
 
     # Shared settings live in common.env, written ONCE — seeded from the
     # current .env when there is one (smooth first-time adoption).
@@ -287,11 +364,9 @@ cmd_new() {
         echo "Created $SECRETS_FILE (gitignored) — put your API key(s) there."
     fi
 
-    local seed_pd seed_tc
-    seed_pd="$(env_get "$ENV_FILE" PROJECTS_DIR)"
-    seed_tc="$(env_get "$ENV_FILE" TOOLCHAINS)"
+    # (seed values come from the dup-guard block above)
     cat > "$ws" <<EOF
-# Workspace '$name' — applied with: make workspace NAME=$name
+# Workspace '$name' — applied with: scc ws switch NAME=$name
 # Merged over workspaces/common.env (this file wins on duplicate keys).
 
 # REQUIRED: absolute host path mounted at /workspace (the only writable bind mount).
@@ -320,14 +395,14 @@ EGRESS=allowlist
 
 # Extra egress domains for THIS workspace: one squid domain per line in
 #   workspaces/$name.allowlist.txt
-# (baked into the proxy on switch; 'make denied' shows what got blocked).
+# (baked into the proxy on switch; 'scc denied' shows what got blocked).
 #
 # For a project REPO, prefer the repo-anchored model instead (config lives
 # in the repo, survives machine loss):
-#   make add-workspace PROJECT=<path>
+#   scc ws add PROJECT=<path>
 EOF
     echo "Created $ws — review/edit it, then activate with:"
-    echo "    make workspace NAME=$name"
+    echo "    scc ws switch NAME=$name"
 }
 
 ########################################################################
@@ -344,9 +419,52 @@ kebab_case() {
 # exactly this merged set (never installation-default scope — docs/github.md).
 KNOWN_PERMISSIONS="contents pull_requests issues administration workflows deployments actions"
 
+# ensure_edit_deny <path> — deny Write/Edit on the profile folder AND the
+# per-project egress/ allowlist in the project's .claude/settings.json:
+# both are committed repo truth (.secure-container/ = toolchains, egress
+# posture, GitHub scope; egress/allowlist.txt = the exfiltration perimeter)
+# that the sandbox agent must never edit from inside a session — changes
+# go through the HOST ACTION protocol and the host instead. This is also
+# why the agent only PRINTS the allowlist line now. Creates the file when
+# missing, merges the rules into an existing one (idempotent; jq is a hard
+# prerequisite, docs/setup.md). Runs on every registration — including
+# idempotent re-runs of add/init — so existing projects pick it up too.
+DENY_RULES='["Edit(.secure-container/**)","Write(.secure-container/**)","NotebookEdit(.secure-container/**)","Edit(egress/**)","Write(egress/**)","NotebookEdit(egress/**)"]'
+ensure_edit_deny() { # ensure_edit_deny <project-path>
+    local path="$1" tmp new
+    local f="$path/.claude/settings.json"
+    if [ ! -e "$f" ]; then
+        mkdir -p "$path/.claude"
+        printf '{\n  "permissions": {\n    "deny": %s\n  }\n}\n' "$DENY_RULES" > "$f"
+        echo "settings: created $f — deny writes to .secure-container/ and egress/"
+        return 0
+    fi
+    command -v jq >/dev/null 2>&1 \
+        || die "jq is required to merge $f — install jq (docs/setup.md)"
+    new="$(jq --argjson rules "$DENY_RULES" '
+        .permissions //= {}
+        | (.permissions.deny //= [])
+        | . as $cfg
+        | ($cfg.permissions.deny) as $deny
+        | [$rules[] | select(. as $r | ($deny | index($r)) | not)] as $add
+        | if ($add | length) > 0
+          then .permissions.deny = ($deny + $add)
+          else .
+          end' "$f")" || die "could not parse $f — invalid JSON?"
+    if [ -n "$new" ] \
+        && [ "$(printf '%s' "$new" | jq -S .)" != "$(jq -S . "$f" 2>/dev/null)" ]; then
+        tmp="$(mktemp)"
+        printf '%s\n' "$new" > "$tmp"
+        mv "$tmp" "$f"
+        echo "settings: added .secure-container/ + egress/ write-deny rules to $f"
+    else
+        echo "settings: $f already denies writes to .secure-container/ and egress/"
+    fi
+}
+
 cmd_add() {
     local path="${1:-}" name="${2:-}"
-    [ -n "$path" ] || die "usage: make add-workspace PROJECT=~/projects/<name> [WS=<custom-name>]"
+    [ -n "$path" ] || die "usage: scc ws add PROJECT=~/projects/<name> [WS=<custom-name>]"
     path="${path/#\~/$HOME}"
     [ -d "$path" ] || die "project path '$path' does not exist"
     path="$(cd "$path" && pwd)"
@@ -360,6 +478,13 @@ cmd_add() {
     printf '%s' "$name" | grep -Eq '^[a-z0-9][a-z0-9-]*$' \
         || die "name must be kebab-case: lowercase letters, digits, dashes ('$name') — pass WS=<name>"
     [ "$name" = common ] && die "'common' is reserved for workspaces/common.env"
+    # duplicate prevention + idempotent re-registration (one path, one definition)
+    local rc_dup=0
+    dup_check "$path" "$name" || rc_dup=$?
+    # deny rules are ensured on the idempotent path too — this is how
+    # already-onboarded projects pick them up (e.g. via scc init re-run)
+    ensure_edit_deny "$path"
+    if [ "$rc_dup" = 3 ]; then return 0; fi
     mkdir -p "$WS_DIR"
     [ -f "$WS_DIR/$name.env" ] && die "$WS_DIR/$name.env already exists — pick another name (WS=<name>)"
 
@@ -396,7 +521,7 @@ EOF
         # --- egress allowlist template (the "# why" convention) ---------------
         cat > "$path/egress/allowlist.txt" <<'EOF'
 # Per-project egress domains, baked into the sandbox proxy on
-# 'make reload-egress'. One squid dstdomain per line; document EACH domain
+# 'scc egress reload'. One squid dstdomain per line; document EACH domain
 # with a trailing "# why" — this file is the durable record. Exact host
 # beats wildcard ('.api.stripe.com' also matches the apex).
 # git remote hosts are NOT allowed here (GITHUB_* scope opens those).
@@ -412,18 +537,21 @@ This folder anchors this repo to the hardened Claude Code sandbox
 (docs/workspaces.md, docs/github.md). It is committed so the setup travels
 with the repo — a fresh machine needs only:
 
-    make add-workspace PROJECT=<this-repo-path>
-    make workspace NAME=<name>        # name defaults to the repo basename
-    make claude                       # or: make yolo
+    scc init <this-repo-path>         # registers + activates (name = repo basename)
 
 Contents:
 
 * \`workspace.env\` — the workspace profile (toolchains, egress posture,
-  optional GitHub scope).
+  optional GitHub scope). The sandbox agent may NOT write here — nor into
+  the project's \`egress/\` allowlist: both carry committed repo truth, and
+  the project's .claude/settings.json carries matching deny rules.
+  Changes go through you on the HOST ACTION protocol, which the agent now
+  answers by PRINTING the exact line instead of editing files.
 * \`/egress/allowlist.txt\` (repo root) — per-project egress domains, each
   documented with a \`# why\` comment; the proxy bakes them in on
-  \`make reload-egress\`. The in-sandbox agent extends this file at
-  \`/workspace/egress/allowlist.txt\` and waits for the host reload.
+  \`scc egress reload\`. The in-sandbox agent may NOT edit this file —
+  writes are denied by the project's .claude/settings.json — it PRINTS
+  the exact line to add and waits for you to reload on the host.
 * This README — what the folder is and how to use it.
 
 Secrets NEVER live here (it is committed): the GitHub App private key path
@@ -448,7 +576,7 @@ EOF
 
     echo
     echo "Registered workspace '$name' -> $path"
-    echo "Activate it with: make workspace NAME=$name"
+    echo "Activate it with: scc ws switch NAME=$name"
 }
 
 ########################################################################
@@ -456,7 +584,7 @@ EOF
 ########################################################################
 cmd_switch() {
     local name="${1:-}"
-    [ -n "$name" ] || die "usage: scripts/workspace.sh switch <name>  (or: make workspace NAME=<name>)"
+    [ -n "$name" ] || die "usage: scripts/workspace.sh switch <name>  (or: scc ws switch NAME=<name>)"
     local ws="$WS_DIR/$name.env"
     if [ ! -f "$ws" ]; then
         echo "workspace: no definition $ws" >&2
@@ -483,7 +611,7 @@ cmd_switch() {
             if [ "$stored" != "$actual" ] && [ "${FORCE:-0}" != 1 ]; then
                 die ".env was edited by hand since it was generated.
 Fold the edit into $WS_DIR/$(sed -n 's/^# workspace: //p' "$ENV_FILE" | head -1).env (or common.env),
-or override once with: FORCE=1 make workspace NAME=$name"
+or override once with: scc ws switch NAME=$name FORCE=1"
             fi
         else
             # Legacy hand-written .env: preserve it, then take over.
@@ -522,7 +650,7 @@ or override once with: FORCE=1 make workspace NAME=$name"
     sp="$(env_get "$WS_DIR/$name.env" SECURE_PROJECT_PATH)"
     repo_profile="$(repo_profile_for "$name")"
     if [ -n "$sp" ] && [ -z "$repo_profile" ]; then
-        die "SECURE_PROJECT_PATH '$sp' has no .secure-container/workspace.env — seed it with: make add-workspace PROJECT=$sp"
+        die "SECURE_PROJECT_PATH '$sp' has no .secure-container/workspace.env — seed it with: scc init $sp"
     fi
 
     # --- GitHub scope validation (docs/github.md) ------------------------------
@@ -632,7 +760,7 @@ or override once with: FORCE=1 make workspace NAME=$name"
     sha="$(printf '%s\n' "$merged" | sha_of)"
     {
         echo "# GENERATED by scripts/workspace.sh from $ws — do not edit."
-        echo "# Edit $ws (or workspaces/common.env), then rerun: make workspace NAME=$name"
+        echo "# Edit $ws (or workspaces/common.env), then rerun: scc ws switch NAME=$name"
         echo "# workspace: $name"
         echo "# sha256: $sha"
         printf '%s\n' "$merged"
@@ -650,22 +778,22 @@ or override once with: FORCE=1 make workspace NAME=$name"
     running="$($eng ps -q --filter label=com.docker.compose.project=claude-sandbox 2>/dev/null | head -1)"
 
     if [ "$leaving_learning" = 1 ]; then
-        echo "--- leaving learning mode (make learn-off) ---"
+        echo "--- leaving learning mode (scc egress learn-off) ---"
         make learn-off
     fi
     if [ "$build_needed" = 1 ]; then
-        echo "--- toolchains changed ('$old_tc' -> '$new_tc'): make build ---"
+        echo "--- toolchains changed ('$old_tc' -> '$new_tc'): scc build ---"
         make build
     elif [ "$frag_changed" = 1 ] && [ "$leaving_learning" = 0 ] && [ "$entering_learning" = 0 ]; then
-        echo "--- egress fragments changed (workspace/project/scope): make reload-egress ---"
+        echo "--- egress fragments changed (workspace/project/scope): scc egress reload ---"
         make reload-egress
     fi
     if [ "$restart_needed" = 1 ] && [ -n "$running" ]; then
-        echo "--- applying to running sandbox: make restart ---"
+        echo "--- applying to running sandbox: scc restart ---"
         make restart
     fi
     if [ "$entering_learning" = 1 ]; then
-        echo "--- workspace declares EGRESS=learning: make learn ---"
+        echo "--- workspace declares EGRESS=learning: scc egress learn ---"
         make learn
     fi
 
@@ -677,29 +805,276 @@ or override once with: FORCE=1 make workspace NAME=$name"
     echo "    EGRESS       = $new_egress"
     if scope_active "$tmp"; then
         echo "    GITHUB scope = $(env_get "$tmp" GITHUB_REPO)"
-        echo "                   (1h tokens; refresh with 'make gh-renew' during long sessions)"
+        echo "                   (1h tokens; refresh with 'scc renew' during long sessions)"
     fi
     if [ "$restart_needed" = 1 ] && [ -z "$running" ]; then
-        echo "Nothing was running — start with: make claude   (or make yolo / make shell)"
+        echo "Nothing was running — start with: scc claude   (or scc yolo / scc shell)"
     fi
     if [ "$build_needed" = 0 ] && [ "$restart_needed" = 0 ]; then
         echo "No rebuild/restart needed — value changes apply to new sessions automatically."
     fi
-    [ "$new_egress" = learning ] || echo "Verify the posture with: make doctor"
+    [ "$new_egress" = learning ] || echo "Verify the posture with: scc doctor"
     rm -f "$tmp"
 }
 
 ########################################################################
 # dispatch
 ########################################################################
+########################################################################
+# prune
+########################################################################
+# cmd_prune — remove workspace definitions whose project folder is gone.
+# Never touches common.env/secrets.env, definitions whose folder still
+# exists, or the ACTIVE workspace (even when its folder is gone — the
+# running .env still references it; switch away first). Repo-anchored
+# definitions lose nothing: the profile travels in the project repo's
+# .secure-container/, and `scc init <path>` re-registers if it returns.
+cmd_prune() {
+    local active="" f name sp pd path
+    local -a dead=()
+    [ -f "$ACTIVE_MARKER" ] && active="$(cat "$ACTIVE_MARKER")"
+    if ! ls "$WS_DIR"/*.env >/dev/null 2>&1; then
+        echo "prune: no workspace definitions — nothing to do"
+        return 0
+    fi
+    for f in "$WS_DIR"/*.env; do
+        name="$(basename "$f" .env)"
+        if [ "$name" = common ] || [ "$name" = secrets ]; then continue; fi
+        sp="$(env_get "$f" SECURE_PROJECT_PATH)"
+        pd="$(env_get "$f" PROJECTS_DIR)"
+        path="${sp:-$pd}"
+        if [ -z "$path" ]; then
+            echo "skip  $name — no PROJECTS_DIR/SECURE_PROJECT_PATH to judge"
+            continue
+        fi
+        path="${path/#\~/$HOME}"
+        if [ -d "$path" ]; then continue; fi
+        if [ "$name" = "$active" ]; then
+            echo "keep  $name — $path is gone but the workspace is ACTIVE;"
+            echo "      switch away first (scc switch <name>), then prune"
+            continue
+        fi
+        dead+=("$name")
+        echo "dead  $name — $path does not exist"
+    done
+    # orphaned allowlist fragments (no matching definition, e.g. left over
+    # from a pruned workspace)
+    local -a orphs=()
+    for f in "$WS_DIR"/*.allowlist.txt; do
+        [ -f "$f" ] || continue
+        name="$(basename "$f" .allowlist.txt)"
+        if [ ! -f "$WS_DIR/$name.env" ]; then orphs+=("$f"); fi
+    done
+    for f in "${orphs[@]:-}"; do
+        [ -n "$f" ] || continue
+        echo "dead  orphaned allowlist fragment: $f"
+    done
+    if [ "${#dead[@]}" = 0 ] && [ "${#orphs[@]}" = 0 ]; then
+        echo "prune: nothing to remove"
+        return 0
+    fi
+    if [ "${FORCE:-}" != 1 ]; then
+        if [ -t 0 ]; then
+            local answer
+            printf 'remove %s workspace definition(s)? [y/N] ' "${dead[*]}"
+            read -r answer
+            case "$answer" in y|Y|yes) ;; *) echo "workspace: skipped"; return 0 ;; esac
+        else
+            echo "workspace: dry run (no tty) — nothing removed. Confirm with: scc ws prune FORCE=1"
+            return 0
+        fi
+    fi
+    for name in "${dead[@]}"; do rm -f "$WS_DIR/$name.env"; done
+    for f in "${orphs[@]:-}"; do
+        [ -n "$f" ] || continue
+        rm -f "$f"
+    done
+    echo "pruned ${#dead[@]} definition(s), ${#orphs[@]} orphaned fragment(s)"
+    if [ "${#dead[@]}" -gt 0 ]; then echo "  definitions: ${dead[*]}"; fi
+    if [ "${#orphs[@]}" -gt 0 ]; then echo "  fragments:   ${orphs[*]}"; fi
+    echo "  (the profile stays in the project repo's .secure-container/ —"
+    echo "   if the folder returns, re-register with: scc init <path>)"
+}
+
+########################################################################
+# rm
+########################################################################
+# cmd_rm <name> — remove ONE machine-local workspace definition. The choice
+# is made from exactly what `scripts/workspace.sh list` shows (common and
+# secrets are unreachable BY CONSTRUCTION — candidates never include them).
+# The project repo is never touched: only workspaces/<name>.env and its
+# optional workspaces/<name>.allowlist.txt are removed; the committed
+# .secure-container/ stays with the repo. The ACTIVE workspace is refused
+# (same rule as prune: the running .env references it — switch away first).
+# FORCE=1 skips the confirmation prompt; without a tty the command stays
+# dry (die) instead of guessing.
+cmd_rm() {
+    local pick="${1:-}" n n2 i answer frag found active=""
+    local -a names=()
+    if [ -f "$ACTIVE_MARKER" ]; then active="$(cat "$ACTIVE_MARKER")"; fi
+    for f in "$WS_DIR"/*.env; do
+        n="$(basename "$f" .env)"
+        if [ "$n" = common ] || [ "$n" = secrets ]; then continue; fi
+        names+=("$n")
+    done
+    if [ "${#names[@]}" = 0 ]; then
+        die "no workspace definitions to remove (create one: scc ws new NAME= / scc ws add PROJECT=)"
+    fi
+    # --- which one? ------------------------------------------------------------
+    if [ -z "$pick" ]; then
+        echo "workspace definitions:"
+        i=1
+        for n in "${names[@]}"; do
+            extra=""
+            if [ "$n" = "$active" ]; then extra="   * active — switch away before removing"; fi
+            printf '  %2d) %s%s\n' "$i" "$n" "$extra"
+            i=$((i+1))
+        done
+        printf 'remove which? (number or name, empty aborts): '
+        if [ ! -t 0 ]; then
+            die "interactive choice needs a tty — or pass the name directly: scc ws rm NAME"
+        fi
+        read -r pick
+        if [ -z "$pick" ]; then echo "workspace: skipped"; return 0; fi
+    fi
+    case "$pick" in
+        *[!0-9]*) n="$pick" ;;
+        *)
+            n=""
+            if [ "$pick" -ge 1 ] && [ "$pick" -le "${#names[@]}" ] 2>/dev/null; then
+                n="${names[$((pick-1))]}"
+            fi
+            ;;
+    esac
+    found=0
+    for n2 in "${names[@]}"; do
+        if [ "$n2" = "$n" ]; then found=1; fi
+    done
+    if [ "$found" != 1 ]; then
+        die "'$n' is not a workspace definition (common/secrets are never removable; valid: ${names[*]})"
+    fi
+    if [ "$n" = "$active" ]; then
+        die "refusing to remove '$n': it is the ACTIVE workspace — 'scc switch <other>' first"
+    fi
+    # --- what exactly gets removed ----------------------------------------------
+    frag="$WS_DIR/$n.allowlist.txt"
+    echo "will remove (machine-local files only):"
+    echo "  $WS_DIR/$n.env"
+    if [ -f "$frag" ]; then echo "  $frag"; fi
+    echo "  the project repo is NOT touched — its committed .secure-container/ stays."
+    if [ "${FORCE:-}" != 1 ]; then
+        if [ -t 0 ]; then
+            printf 'remove workspace definition %s? [y/N] ' "$n"
+            read -r answer
+            case "$answer" in y|Y|yes) ;; *) echo "workspace: skipped"; return 0 ;; esac
+        else
+            die "no tty for the prompt — confirm with: scc ws rm $n FORCE=1"
+        fi
+    fi
+    rm -f "$WS_DIR/$n.env" "$frag"
+    echo "removed '$n'."
+    echo "  re-register later with: scc init <path>   (or: scc ws add PROJECT=<path>)"
+}
+
+########################################################################
+# scope off / on / restore
+########################################################################
+# Learning mode and a GitHub scope are mutually exclusive (docs/egress.md).
+# Instead of editing the repo's committed .secure-container/workspace.env,
+# scope-off writes an EMPTY-override block into the machine-local
+# workspaces/<active>.env — it wins the merge chain, so the scope is off
+# while the repo profile stays exactly as committed. scope-on removes the
+# block and re-applies; `scc egress learn-off` offers that automatically
+# (scope-restore). The block is marked, idempotent, and lives ONLY in the
+# machine-local definition file.
+SCOPE_MARK_BEGIN='# TEMP-SCOPE-OFF BEGIN — auto-added for learning mode (scc egress learn); scc egress scope-on removes it'
+SCOPE_MARK_END='# TEMP-SCOPE-OFF END'
+
+active_ws_name() {
+    cat "$ACTIVE_MARKER" 2>/dev/null || true
+}
+
+scope_off() {
+    local name ws_file answer
+    name="$(active_ws_name)"
+    [ -n "$name" ] || die "no active workspace"
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || die "workspaces/$name.env is missing"
+    if ! grep -q '^GITHUB_APP_ID=..*' "$ENV_FILE" 2>/dev/null \
+        || ! grep -q '^GITHUB_REPO=..*' "$ENV_FILE" 2>/dev/null; then
+        die "the active workspace '$name' has no GitHub scope — nothing to switch off"
+    fi
+    if grep -qF "$SCOPE_MARK_BEGIN" "$ws_file"; then
+        echo "workspace: the scope-off override is already present in $ws_file"
+    else
+        if [ "${SCOPE_ACK:-}" = yes ]; then
+            : # explicit acknowledgement (automation), proceed below
+        elif [ -t 0 ]; then
+            printf 'Switch the GitHub scope OFF in %s (machine-local override, the committed repo profile stays)? [y/N] ' "$ws_file"
+            read -r answer
+            case "$answer" in y|Y|yes) ;; *) die "scope-off declined — the scope is untouched" ;; esac
+        else
+            die "not a tty and SCOPE_ACK is not 'yes' — rerun interactively"
+        fi
+        {
+            echo ""
+            echo "$SCOPE_MARK_BEGIN"
+            echo "GITHUB_APP_ID="
+            echo "GITHUB_INSTALLATION_ID="
+            echo "GITHUB_REPO="
+            echo "$SCOPE_MARK_END"
+        } >> "$ws_file"
+        echo "workspace: wrote the temp scope-off override into $ws_file (repo profile untouched)"
+    fi
+    cmd_switch "$name"
+}
+
+scope_on() {
+    local name ws_file
+    name="$(active_ws_name)"
+    [ -n "$name" ] || die "no active workspace"
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || die "workspaces/$name.env is missing"
+    if ! grep -qF "$SCOPE_MARK_BEGIN" "$ws_file"; then
+        die "no scope-off override found in $ws_file — the scope was never switched off (or already restored)"
+    fi
+    sed -i "/^${SCOPE_MARK_BEGIN//\//\\/}/,/^${SCOPE_MARK_END//\//\\/}/d" "$ws_file"
+    echo "workspace: removed the temp scope-off override from $ws_file"
+    cmd_switch "$name"
+}
+
+scope_restore() { # called by `make learn-off` (user: `scc egress learn-off`) — offer undoing a temp scope-off
+    local name ws_file answer
+    name="$(active_ws_name)"
+    [ -n "$name" ] || return 0
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || return 0
+    grep -qF "$SCOPE_MARK_BEGIN" "$ws_file" || return 0
+    echo "workspace: a temp scope-off override is still present in $ws_file"
+    if [ -t 0 ]; then
+        printf 'Restore the GitHub scope now (removes the override and re-applies)? [y/N] '
+        read -r answer
+        case "$answer" in y|Y|yes) scope_on ;; *) echo "workspace: kept the override — restore later with: scc egress scope-on" ;; esac
+    else
+        echo "workspace: kept it (not a tty) — restore later with: scc egress scope-on"
+    fi
+    return 0
+}
+
 case "${1:-}" in
     list)    cmd_list ;;
     current) cmd_current ;;
+    sync)    shift; cmd_sync "${1:-}" ;;
     new)     shift; cmd_new "$@" ;;
     add)     shift; cmd_add "$@" ;;
     switch)  shift; cmd_switch "$@" ;;
+    prune)   cmd_prune ;;
+    rm)      shift; cmd_rm "$@" ;;
+    scope-off) scope_off ;;
+    scope-on)  scope_on ;;
+    scope-restore) scope_restore ;;
     *)
-        echo "usage: scripts/workspace.sh {list|current|new <name>|add <path> [name]|switch <name>}" >&2
+        echo "usage: scripts/workspace.sh {list|current|sync [name]|new <name>|add <path> [name]|switch <name>|prune|rm [name]|scope-off|scope-on|scope-restore}" >&2
         exit 2
         ;;
 esac

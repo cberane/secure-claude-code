@@ -20,7 +20,7 @@ The container has no credentials, no host network, no docker socket, a
 read-only rootfs, and exactly one way out: an allowlist egress proxy. Git
 pushes/pulls happen only on the host; commits inside are signed with a
 dedicated signing-only key. Every claimed property is asserted by
-`make doctor`.
+`scc doctor`.
 
 ¹ With the optional docker-in-docker toolchain enabled, its sidecar runs
 `privileged` inside a user namespace — escaping it to the host additionally
@@ -34,28 +34,39 @@ requires a kernel/userns vulnerability. Details:
 - Docker Engine with compose plugin **≥ 2.24**, or rootless podman.
 - `make`, `bash`, `jq`, `ssh-keygen`, `git`.
 
-`make preflight` verifies all of this with actionable messages.
+Preflight verifies all of this with actionable messages — it runs inside
+`scc init` and automatically before every build/start.
 
 ## Getting started
 
 ```sh
 cp .env.example .env      # set PROJECTS_DIR, UID/GID, git identity
-make build
-make claude               # start here; switch to make yolo once it feels right
+make install-scc          # install the scc CLI (user-local) — the one make command you need
+scc build                 # build the sandbox images
+scc claude                # start here; switch to scc yolo once it feels right
 ```
+
+From here on, everything runs through **`scc`** — the user-facing CLI:
+bare `scc` lists every command (bare `scc gh` shows just that group,
+`scc <anything> -h` never guesses). [docs/scc.md](docs/scc.md) is the
+full reference. Every `scc` command also exists as a `make` target —
+that layer is what CI and the repo's own skills use.
 
 The three ways into the sandbox — same container, same hardening, they
 differ only in what runs inside:
 
 | Command | Runs | Permission prompts |
 |---|---|---|
-| `make claude` | Claude Code, normal mode | Yes — the agent asks before commands/edits, like on a bare host |
-| `make yolo` | Claude Code with `--dangerously-skip-permissions` | **None — full autonomy.** The mode this sandbox was built for: the container makes it safe to grant |
-| `make shell` | plain bash, no agent | n/a — poke around, run builds, inspect the environment yourself |
+| `scc claude` | Claude Code, normal mode | Yes — the agent asks before commands/edits, like on a bare host |
+| `scc yolo` | Claude Code with `--dangerously-skip-permissions` | **None — full autonomy.** The mode this sandbox was built for: the container makes it safe to grant |
+| `scc shell` | plain bash, no agent | n/a — poke around, run builds, inspect the environment yourself |
 
-`make claude` is the sensible first run (login, look around); switch to
-`make yolo` for real work — inside this sandbox the "dangerously" is
-bounded by the container, not by your machine.
+`scc init ~/projects/<repo>` onboards a project in one walk: preflight,
+workspace registration, per-project GitHub App, token — `scc status`
+tells you exactly where any folder stands. `scc claude` is the sensible
+first run (login, look around); switch to `scc yolo` for real work —
+inside this sandbox the "dangerously" is bounded by the container, not
+by your machine.
 
 First run walks you through two one-time steps:
 
@@ -67,14 +78,14 @@ First run walks you through two one-time steps:
 Then verify the hardening:
 
 ```sh
-make doctor               # 19 hardening checks + toolchain function checks
+scc doctor                # 19 hardening checks + toolchain function checks
 ```
 
 ## Daily use in one table
 
 | Where | What |
 |---|---|
-| Container (`make claude` / `make yolo`) | edit, build, test, `git add`, `git commit` (auto-signed) |
+| Container (`scc claude` / `scc yolo`) | edit, build, test, `git add`, `git commit` (auto-signed) |
 | Host | `git push` / `pull` / `fetch`, allowlist edits, key rotation |
 
 When the agent needs anything host-only (a push, a new egress domain, a

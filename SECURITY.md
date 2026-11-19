@@ -39,7 +39,7 @@ their compensating controls:
   escape from it additionally requires a kernel/userns vulnerability.
 - The agent can destroy the mounted project directory. That is the
   accepted blast radius, not a bug.
-- **Egress learning mode** (`make learn`) deliberately suspends the
+- **Egress learning mode** (`scc egress learn`) deliberately suspends the
   allowlist (LAN + git hosts stay denied, signing key is removed, doctor
   stays red). While it is active, exfiltration of the session token or
   workspace contents is possible by design — reports about learning mode
@@ -54,7 +54,7 @@ gap reaching a non-allowlisted registry) IS in scope.
 Use **GitHub's private vulnerability reporting** on this repository
 (Security tab → "Report a vulnerability"). Please include your host OS,
 container engine (docker/podman + version), relevant `.env` settings
-(TOOLCHAINS, ENGINE — never tokens), and ideally the `make doctor` output.
+(TOOLCHAINS, ENGINE — never tokens), and ideally the `scc doctor` output.
 
 Please do not open public issues for suspected vulnerabilities.
 

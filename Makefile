@@ -89,9 +89,9 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
                    echo "WARNING: an interactive session (claude-session) is running and will be killed."; \
                fi
 
-.PHONY: help preflight build up down stop restart shell claude yolo doctor update-sandbox-skills \
-        workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire install-scc \
-        learn learn-off _learn-apply learned \
+.PHONY: help preflight build up down stop restart shell claude yolo doctor status update-sandbox-skills \
+        workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire install-scc ws-prune ws-rm \
+        learn learn-off _learn-apply learned scope-off scope-on \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
         certificates cert renew-certs \
         clean clean-dind \
@@ -214,6 +214,12 @@ yolo: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egres
 workspaces: ## Workspaces: List workspace definitions (active one marked)
 	@scripts/workspace.sh list
 
+ws-prune: ## Workspaces: Remove definitions whose project folder is gone (FORCE=1 skips the prompt)
+	@scripts/workspace.sh prune
+
+ws-rm: ## Workspaces: Remove ONE definition: make ws-rm NAME=x (asks which if NAME is empty; FORCE=1 skips the prompt)
+	@scripts/workspace.sh rm "$(if $(findstring command line,$(origin NAME)),$(NAME),)"
+
 workspace: preflight ## Workspaces: Switch workspace: make workspace NAME=x (FORCE=1 overrides the edit guard)
 	@if [ -z "$(NAME)" ]; then echo "workspace: NAME is required — make workspace NAME=x (a stray ambient NAME env var would otherwise leak in)"; exit 1; fi
 	@scripts/workspace.sh switch "$(NAME)"
@@ -254,6 +260,15 @@ gh-app-wire: preflight ## GitHub: Rescue/wire an app from an existing PEM: make 
 
 install-scc: preflight ## Setup: install the scc CLI for the current user (launcher ~/.local/bin/scc)
 	@mkdir -p "$$HOME/.local/bin" \
+	    && if [ -f "$$HOME/.local/bin/scc" ]; then \
+	        old="$$(sed -n 's/.*exec bash "\([^"]*\)\/scripts\/scc.sh".*/\1/p' "$$HOME/.local/bin/scc")"; \
+	        if [ -n "$$old" ] \
+	           && [ "$$old/scripts/scc.sh" != "$(CURDIR)/scripts/scc.sh" ]; then \
+	            echo "REPLACING previous launcher for: $$old"; \
+	        elif [ -z "$$old" ]; then \
+	            echo "NOTE: overwriting an existing ~/.local/bin/scc that is not an scc launcher"; \
+	        fi; \
+	    fi \
 	    && rm -f "$$HOME/.local/bin/scc" \
 	    && printf '#!/bin/sh\nexec bash "%s/scripts/scc.sh" "$$@"\n' "$(CURDIR)" \
 	       > "$$HOME/.local/bin/scc" \
@@ -291,19 +306,26 @@ learn: preflight ## Egress: Enter egress learning mode (open egress, logged; sig
 	@$(MAKE) --no-print-directory EGRESS_MODE=learning _learn-apply
 	@echo
 	@echo "LEARNING MODE ACTIVE — egress is OPEN (LAN + git hosts still denied)."
-	@echo "  * Start a FRESH session (make claude/yolo) — it runs without the"
+	@echo "  * Start a FRESH session (scc claude/yolo) — it runs without the"
 	@echo "    signing key; sessions started earlier still carry it: close them."
 	@echo "  * Do not mount secret-bearing projects while this mode is on."
-	@echo "  * Distill with 'make learned'; leave with 'make learn-off'."
+	@echo "  * Distill with 'scc egress learned'; leave with 'scc egress learn-off'."
 	@echo "  * Full guide: docs/egress.md"
 
 learn-off: ## Egress: Leave learning mode and rebake the proxy with the (updated) allowlist
+	@scripts/workspace.sh scope-restore
 	@rm -f .learning-mode
 	@$(MAKE) --no-print-directory EGRESS_MODE=allowlist _learn-apply
 	@echo
 	@echo "Learning mode OFF — allowlist enforced again. Rerun the task to"
 	@echo "verify the curated list is complete (blocked-domains catches gaps),"
-	@echo "and run 'make doctor' to confirm the posture is green."
+	@echo "and run 'scc doctor' to confirm the posture is green."
+
+scope-off: ## Egress: Switch the active workspace's GitHub scope off machine-locally (learning mode requires it; repo profile untouched)
+	@scripts/workspace.sh scope-off
+
+scope-on: ## Egress: Restore the GitHub scope after a temp scope-off (removes the override, re-applies)
+	@scripts/workspace.sh scope-on
 
 # Re-entered via $(MAKE) so the marker created/removed above is seen by a
 # fresh Makefile evaluation (COMPOSE/EGRESS_MODE are computed at parse time).
@@ -338,6 +360,9 @@ renew-certs: ## TLS or signing: Re-mint every dev-CA project cert with a fresh 3
 
 doctor: preflight keygen egress/allowlist.txt egress/allowlist.workspace.txt egress/allowlist.git-scope.txt _project-egress dind/images-allowlist.txt secrets/dev-ca/public secrets/github-space skills-remote ## Inspect: Run the full hardening self-test (host + container)
 	@scripts/doctor.sh --host
+
+status: ## Inspect: Per-project feedback for a folder (onboarded? registered? running?) — make status [PROJECT=~/x]
+	@scripts/status.sh "$(PROJECT)"
 
 install-hooks: ## Setup: Install the secret-blocking pre-commit hook into THIS repo
 	install -m 0755 security/pre-commit .git/hooks/pre-commit

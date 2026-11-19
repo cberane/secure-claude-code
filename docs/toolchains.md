@@ -2,7 +2,7 @@
 
 Set `TOOLCHAINS` in `.env` as a comma list — `TOOLCHAINS=php`,
 `TOOLCHAINS=python,docker`, any combination — then
-`make build && make restart`.
+`scc build && scc restart`.
 
 Each enabled toolchain automatically enables its registry domains at the
 proxy (`egress/allowlist.d/<toolchain>.txt`) — and drops them again when
@@ -64,8 +64,8 @@ Key facts:
 The sandbox talks to dind only through a filtering guard (`dind-guard`):
 
 - Pulls are limited to images matching `dind/images-allowlist.txt`
-  (local, from the tracked template; `make reload-images` applies edits
-  without touching the daemon).
+  (local, from the tracked template; `scc egress reload-images` applies
+  edits without touching the daemon).
 - `docker load` / import sideloading is denied outright.
 - The daemon itself lives on an isolated network the sandbox cannot
   reach; the guard bridges it under the alias `dind` (filtered API on
@@ -124,7 +124,7 @@ the 8080 publication, limited to loopback.
 
 To add a further port: bind it in `ingress/haproxy.cfg`, list it under the
 override's `ports:`, and make sure `dind/haproxy.cfg` (`listen app_ports`)
-forwards it too. Apply with `make reload-ingress`.
+forwards it too. Apply with `scc egress reload-ingress`.
 
 ## Custom seccomp
 

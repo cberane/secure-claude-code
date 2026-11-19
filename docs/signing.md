@@ -17,7 +17,7 @@ Configurable in `.env`:
 - **≥ 30 days** (`SIGNING_KEY_WARN_DAYS`) — yellow warning at session
   start and once per session at commit time; work continues.
 - **≥ 45 days** (`SIGNING_KEY_MAX_DAYS`) — commits are blocked until you
-  run `make rotate-signing-key` on the host. Emergency override:
+  run `scc tls rotate-key` on the host. Emergency override:
   `SIGNING_KEY_ENFORCE=false` (don't leave it set).
 
 Key age is always computed from `key.meta` → `created_at`, never from file
@@ -40,7 +40,7 @@ commits keep matching the old key's validity window while new commits must
 be signed by the current key. Old private keys are archived under
 `secrets/git-signing/archive/`, never deleted. After rotating: register
 the new public key at your forge **before** removing the old one, then
-`make restart`.
+`scc restart`.
 
 ## The forge side: keep the old key registered until everything is pushed
 
@@ -61,7 +61,7 @@ Practical rotation sequence at the forge:
 1. Register the **new** key as a Signing Key.
 2. **Keep the old key registered** — until every commit signed with it
    has been pushed *and* shows Verified (rule of thumb: about a week of
-   grace; `make rotate-signing-key` prints this guidance). Re-add it from
+   grace; `scc tls rotate-key` prints this guidance). Re-add it from
    the archive when you find strays.
 3. Then remove it online — already-verified history stays Verified.
 

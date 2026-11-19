@@ -391,6 +391,19 @@ placed in `docs/signing.md` and `egress/allowlist.txt`.
   baked in as `egress/allowlist.workspace.txt`) keep project-specific
   domains out of the machine-global `egress/allowlist.txt`, so they
   disappear when the workspace does.
+- **Split starts are refused, not warned.** The session starters (`scc
+  claude` / `yolo` / `shell` and `scc run …`) fail with exit 2 from any
+  folder outside the sandbox checkout and outside the mounted project
+  tree: the stack mounts exactly what the active workspace's
+  `PROJECTS_DIR` says, so a session "started for" another folder would
+  silently run the agent against the mounted one — a hard refusal beats
+  a message that can be scrolled past. Allowed: the checkout itself
+  (managing the tool), the mounted project and everything under it
+  (incl. nested git repos), and the unconfigured case (compose reports
+  its own error). Global operations (`build`, `status`, `doctor`, `up`,
+  egress/tls/maintenance) stay unguarded — they act on the stack, not on
+  a project folder. Guard lives in `scripts/scc.sh` (`guard_session`);
+  the Makefile layer stays open because `make claude` is the plumbing.
 
 ## Scope
 

@@ -1,12 +1,12 @@
 # Workspaces — named per-project profiles
 
 Switching between projects used to mean hand-editing `.env` (change
-`PROJECTS_DIR`, adjust `TOOLCHAINS`, remember which make targets to run) —
+`PROJECTS_DIR`, adjust `TOOLCHAINS`, remember which scc commands to run) —
 error-prone and easy to leave half-applied. Workspaces make that a single
 command:
 
 ```sh
-make workspace NAME=my-laravel-app
+scc ws switch NAME=my-laravel-app
 ```
 
 A **workspace** is one `.env`-worth of per-project settings stored as
@@ -18,18 +18,44 @@ restart, or a rebuild.
 ## Quickstart
 
 ```sh
-make new-workspace NAME=my-laravel-app   # creates the definition (seeded from your current .env)
+scc ws new NAME=my-laravel-app           # creates the definition (seeded from your current .env)
 $EDITOR workspaces/my-laravel-app.env    # set PROJECTS_DIR, TOOLCHAINS, ...
-make workspace NAME=my-laravel-app       # generate .env + build/restart as needed
-make claude                              # work
+scc ws switch NAME=my-laravel-app        # generate .env + build/restart as needed
+scc claude                               # work
 ```
 
 ```sh
-make workspaces                          # list definitions, active one marked
+scc ws list                              # list definitions, active one marked
+scc ws prune                             # remove definitions whose project folder is gone
+                                         # (dry run without a tty; FORCE=1 skips the prompt)
+scc ws rm NAME=x                         # remove ONE definition (asks which if NAME is empty;
+                                         # FORCE=1 skips the prompt; project repo untouched)
 scripts/workspace.sh current             # active workspace + sync status
+scripts/workspace.sh sync [name]         # one-line .env sync verdict (exit 1 when stale)
+scc status [~/projects/<repo>]           # same, folded into the per-project overview
 ```
 
-The first `make new-workspace` also creates `workspaces/common.env` with
+Prune never touches `common`/`secrets`, definitions whose folder still
+exists, or the **active** workspace — even when its folder is gone (the
+generated `.env` still references it; `scc switch <other>` first). It also
+removes orphaned allowlist fragments (`<name>.allowlist.txt` without a
+matching definition). Repo-anchored definitions lose nothing when pruned:
+the profile travels with the repo in `.secure-container/`, so
+`scc init <path>` re-registers if the folder returns.
+
+`ws rm` removes only machine-local files (`workspaces/<name>.env` and its
+allowlist fragment) — the project repo's committed `.secure-container/` is
+never touched, and the **active** workspace is refused (switch away
+first). Both commands name-check candidates exactly like `ws list` shows
+them: `common`/`secrets` are unreachable by construction.
+
+**One project path, one definition.** Registering a path that already has
+a workspace under a different name is refused as a duplicate (`scc ws add`
+and `scc ws new` both guard this); re-running `scc add`/`scc init` with
+the same path and name is idempotent — it reports "nothing to do" instead
+of failing.
+
+The first `scc ws new` also creates `workspaces/common.env` with
 the settings shared by every workspace (engine, UID/GID, git identity,
 model backend) and `workspaces/secrets.env` for API keys. Everything under
 `workspaces/` is machine-local and gitignored, exactly like `.env` itself.
@@ -41,7 +67,7 @@ repo, not in a machine-local sidecar that dies with the machine. For any
 git checkout, prefer:
 
 ```sh
-make add-workspace PROJECT=~/projects/<repo>   # WS=<custom-name> optional
+scc ws add PROJECT=~/projects/<repo>   # WS=<custom-name> optional
 ```
 
 The first call seeds a committed `.secure-container/` folder in the
@@ -51,7 +77,7 @@ adjust and commit it. The machine-local `workspaces/<name>.env` then holds
 only a reference (`SECURE_PROJECT_PATH=<abs path>`) plus machine-only
 overrides (memory limits etc.); secrets stay in `workspaces/secrets.env`,
 as always. A lost machine or a fresh clone is recovered by the same one
-`add-workspace` command — the configuration itself traveled with the repo.
+`scc ws add` command — the configuration itself traveled with the repo.
 
 Merge order (later wins): `common.env` → `<repo>/.secure-container/
 workspace.env` → `<name>.env` → `secrets.env`. `PROJECTS_DIR` derives from
@@ -59,7 +85,7 @@ workspace.env` → `<name>.env` → `secrets.env`. `PROJECTS_DIR` derives from
 `PROJECTS_DIR=/home/you/projects/my-project` as-is works too; a per-project
 egress file (`<project>/egress/allowlist.txt`) can exist for either model.
 
-`new-workspace` remains for local-only scratch workspaces (no repo).
+`scc ws new` remains for local-only scratch workspaces (no repo).
 
 ## Files
 
@@ -84,7 +110,7 @@ there only — e.g. `ANTHROPIC_AUTH_TOKEN=…` for the Ollama Cloud relay
 else in the sandbox changed. But it is now a build product: **edit the
 workspace files, not `.env`**. The switch refuses to clobber a hand-edited
 `.env` (checksum mismatch) until you fold the edit into the definition —
-or override once with `FORCE=1 make workspace NAME=<name>`.
+or override once with `FORCE=1 scc ws switch NAME=<name>`.
 
 A pre-existing hand-written `.env` is preserved as `.env.pre-workspaces`
 on the first switch.
@@ -97,10 +123,10 @@ the cheapest apply path:
 | Change | Action |
 |---|---|
 | Nothing effective | none — values apply to new sessions automatically |
-| Workspace allowlist fragment | `make reload-egress` (proxy only; sessions keep running) |
-| `PROJECTS_DIR` / `DIND_MEM_LIMIT` | `make restart` (only if the sandbox is running) |
-| `TOOLCHAINS` | `make build && make restart` |
-| `EGRESS` posture | `make learn` / `make learn-off` (see below) |
+| Workspace allowlist fragment | `scc egress reload` (proxy only; sessions keep running) |
+| `PROJECTS_DIR` / `DIND_MEM_LIMIT` | `scc restart` (only if the sandbox is running) |
+| `TOOLCHAINS` | `scc build && scc restart` |
+| `EGRESS` posture | `scc egress learn` / `scc egress learn-off` (see below) |
 
 BuildKit caches image layers per `TOOLCHAINS` value, so switching between
 combinations you have built before is a cache-hit retag — seconds, not a
@@ -123,11 +149,11 @@ EGRESS=learning
 ```
 
 `EGRESS=learning` routes through the **existing** learning mode
-(`make learn` / `make learn-off`, [docs/egress.md](egress.md)): egress is
+(`scc egress learn` / `scc egress learn-off`, [docs/egress.md](egress.md)): egress is
 open but logged, the signing key is removed from sessions, and doctor goes
 red while active. Switching *to* such a workspace enters learning mode
 (with its usual confirmation gate when toolchains are enabled); switching
-*away* runs `make learn-off` first, so a hardened workspace can never
+*away* runs `scc egress learn-off` first, so a hardened workspace can never
 inherit a leftover open proxy. There is deliberately **no** separate
 "open egress" mode — see DECISIONS.md.
 
@@ -147,13 +173,13 @@ tile server, ...). Instead of editing the machine-global
 ```
 
 The fragment is baked into the proxy on switch and disappears again when
-you switch to a workspace without one. `make denied` shows what got
+you switch to a workspace without one. `scc denied` shows what got
 blocked when curating the list.
 
 ## Consistency checking
 
-`make doctor` gains host-side check **26** whenever `.workspace` exists:
+`scc doctor` gains host-side check **26** whenever `.workspace` exists:
 the generated `.env` must match its checksum and name the active
 workspace, and the `.learning-mode` marker must agree with the declared
 `EGRESS` posture. A red 26 almost always means "rerun
-`make workspace NAME=<active>`".
+`scc ws switch NAME=<active>`".

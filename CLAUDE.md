@@ -14,7 +14,7 @@ only *inside* the sandbox, never to this development environment.
 ## Editing the sandbox rules
 
 - Rules for the agent inside the container belong in `sandbox/CLAUDE.md`.
-- After changing it, rebuild (`make build`) and run `make doctor` — several
+- After changing it, rebuild (`scc build`) and run `scc doctor` — several
   doctor checks assert behavior those rules describe (git blocking, commit
   trailer rejection, egress policy).
 
@@ -28,19 +28,20 @@ only *inside* the sandbox, never to this development environment.
 
 ## Useful entry points
 
-- `make build` / `make doctor` — rebuild images, run the end-to-end checks.
-- `make certificates` / `make cert DOMAIN=x.test` / `make renew-certs` —
+- `scc build` / `scc doctor` — rebuild images, run the end-to-end checks.
+- `scc tls certs` / `scc tls cert DOMAIN=x.test` / `scc tls renew` —
   local dev CA (host-only, name-constrained) and short-lived project HTTPS
   certs (docs/https.md).
-- `make workspaces` / `make workspace NAME=x` / `make new-workspace NAME=x`
+- `scc ws list` / `scc ws switch NAME=x` / `scc ws new NAME=x`
   — named per-project profiles compiled into the generated `.env`
   (docs/workspaces.md). When `.workspace` exists, edit `workspaces/*.env`,
   never `.env` directly.
-- `make reload-egress` / `reload-images` / `reload-ingress` — apply an
-  allowlist or ingress change by rebuilding only that one service. Prefer
-  these over `make restart`, which drops the dind sidecar and with it every
-  nested container (Sail databases, mailpit, ...).
-- `make ps` / `make df` / `make denied` — state, disk usage (host *and* the
+- `scc egress reload` / `scc egress reload-images` /
+  `scc egress reload-ingress` — apply an allowlist or ingress change by
+  rebuilding only that one service. Prefer these over `scc restart`, which
+  drops the dind sidecar and with it every nested container (Sail
+  databases, mailpit, ...).
+- `scc ps` / `scc df` / `scc denied` — state, disk usage (host *and* the
   nested dind daemon) and the proxy's denied domains, from the host.
 - `.claude/skills/update-image` — refresh all version pins (digests, Claude
   Code, Composer) with automatic rollback.

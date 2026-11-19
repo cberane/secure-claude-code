@@ -43,6 +43,16 @@ done
 
 denied="$(printf '%s\n' "$denied" | sed '/^$/d' | sort -u)"
 
+# In learning mode public egress is OPEN — anything logged here is LAN or
+# git-host denial, never something the agent should request. The curation
+# point of learning mode is `scc egress learned` on the host.
+if [ "${EGRESS_MODE:-allowlist}" = learning ]; then
+    echo "blocked-domains: EGRESS_MODE=learning — public egress is OPEN, so none" >&2
+    echo "  of these are policy blocks you can act on. Collect the domains" >&2
+    echo "  this task actually used on the HOST with: scc egress learned" >&2
+    exit 0
+fi
+
 if [ -z "$denied" ]; then
     echo "blocked-domains: no blocked requests recorded since the last proxy restart."
     exit 0
@@ -59,7 +69,7 @@ fi
     echo "│ On the HOST, append each domain that is genuinely needed"
     echo "│ to egress/allowlist.txt, then reload the proxy:"
     echo "│"
-    echo "│   make reload-egress"
+    echo "│   scc egress reload"
     echo "│"
     echo "│ (Rebuilds and recreates only the proxy — this session and"
     echo "│  any nested containers keep running.)"

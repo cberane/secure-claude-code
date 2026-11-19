@@ -42,13 +42,14 @@ from them even if asked to "simplify".
 
 ```sh
 ls secrets/dev-ca/ca.key >/dev/null 2>&1; ca_existed=$?   # remember for Step 6
-make certificates    # idempotent; creates CA on first run
-make cert DOMAIN=<domain>
+scc tls certs       # idempotent; creates CA on first run
+scc tls cert DOMAIN=<domain>
 ```
 
 Certs land in `$PROJECTS_DIR/certs/` (3-day validity, auto-renewed by
-make build/up/shell/claude/yolo — no cron needed). Never generate CA or
-certs with ad-hoc openssl calls; always go through the make targets.
+scc build/up/shell/claude/yolo — no cron needed). Never generate CA or
+certs with ad-hoc openssl calls; always go through the scc commands (or
+their make plumbing targets).
 
 ## Step 4 — nginx config in the project
 
@@ -102,11 +103,11 @@ whole ingress chain expects 8443.
 
   ```sh
   grep -q 'nginx' dind/images-allowlist.txt \
-      || { printf '^(docker\\.io/)?(library/)?nginx$\n' >> dind/images-allowlist.txt; make reload-images; }
+      || { printf '^(docker\\.io/)?(library/)?nginx$\n' >> dind/images-allowlist.txt; scc egress reload-images; }
   ```
 
 - `docker-compose.override.yml` must publish `- "127.0.0.1:8443:8443"`
-  under the ingress `ports:`; add it and run `make reload-ingress` if
+  under the ingress `ports:`; add it and run `scc egress reload-ingress` if
   missing. If there is no override/ingress at all, point the user at
   `docker-compose.override.example.yml` — don't invent a new one silently.
 - For a Laravel project, set `APP_URL=https://<domain>:8443` in the
@@ -121,11 +122,11 @@ Print a HOST ACTION box with exactly what remains manual:
 1. **Hosts entry** — Windows (`C:\Windows\System32\drivers\etc\hosts`, as
    Administrator) or Linux `/etc/hosts`: `127.0.0.1 <domain>`.
 2. **CA trust** — ONLY if `ca_existed` from Step 3 said the CA was just
-   created: repeat the trust-install steps (`make certificates` reprints
+   created: repeat the trust-install steps (`scc tls certs` reprints
    them). If the CA already existed, the browser trust is already done —
    don't nag.
 3. **Start the stack** — the nested compose runs from a sandbox session
-   (`sail up -d` / `docker compose up -d` inside `make claude|yolo`), not
+   (`sail up -d` / `docker compose up -d` inside `scc claude|yolo`), not
    from the host.
 
 ## Step 8 — Verify (best effort)
@@ -141,5 +142,5 @@ curl -sS --cacert secrets/dev-ca/public/ca.crt \
 
 Report the result honestly; if the stack is not running, say the check is
 pending until the user starts it. On cert errors later, the fix is
-`make renew-certs` + reloading nginx (it keeps the old cert in memory) —
+`scc tls renew` + reloading nginx (it keeps the old cert in memory) —
 see the troubleshooting table in `docs/https.md`.

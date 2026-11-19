@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ensure-dev-ca.sh — HOST-side, idempotent provisioning of the local dev CA
-# behind `make certificates` / `make cert` (docs/https.md).
+# behind `make certificates` / `make cert` (user-facing: `scc tls certs` /
+# `scc tls cert`) (docs/https.md).
 #
 # Same containment model as the signing key: the CA private key NEVER
 # enters the sandbox — only public/ca.crt is mounted (read-only), and all
@@ -20,8 +21,8 @@ CA_KEY="$DEV_CA_DIR/ca.key"
 CA_CRT="$DEV_CA_DIR/public/ca.crt"
 CA_META="$DEV_CA_DIR/ca.meta"
 # ~4 years. Leaf certs are 3 days (mint-cert.sh); the CA itself rotates
-# rarely — delete the folder and rerun `make certificates` to rotate
-# (then re-install trust and `make renew-certs`).
+# rarely — delete the folder and rerun `scc tls certs` to rotate
+# (then re-install trust and `scc tls renew`).
 CA_DAYS="${CA_DAYS:-1460}"
 
 command -v openssl >/dev/null 2>&1 || {
@@ -78,9 +79,9 @@ ensure-dev-ca: partial CA state in $DEV_CA_DIR (key or cert missing) — an
 earlier provisioning run was interrupted. The CA carries no external
 registration, so simply recreate it:
 
-    rm -r "$DEV_CA_DIR" && make certificates
+    rm -r "$DEV_CA_DIR" && scc tls certs
 
-(then re-install browser trust and run 'make renew-certs')
+(then re-install browser trust and run 'scc tls renew')
 EOF
     exit 1
 fi
