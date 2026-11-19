@@ -295,7 +295,17 @@ cmd_run() {
             case "$sub" in
                 claude|yolo|shell) guard_session "$sub" || { s=$?; return $s; } ;;
             esac
-            run_make "$sub"
+            # Trailing VAR=value args must reach make on its COMMAND LINE —
+            # `scc build ENGINE=podman` has to override the `ENGINE` line in
+            # .env, which an exported env var never does (make precedence:
+            # command line > makefile assignment > environment).
+            local va=() a
+            for a in "$@"; do
+                case "$a" in
+                    [A-Za-z_]*=*) va+=("$a") ;;
+                esac
+            done
+            run_make "$sub" "${va[@]}"
             ;;
         *)
             table_view run >&2
