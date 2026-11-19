@@ -100,7 +100,7 @@ per machine or per user, never per project:
   that out.
 - **Authentication:** run `/login` in the first session (open the printed
   URL in your host browser) or put `ANTHROPIC_API_KEY` in `.env` — see
-  [docs/setup.md](docs/setup.md).
+  [docs/setup.md](setup.md).
 
 ## no split starts: session commands are folder-checked
 

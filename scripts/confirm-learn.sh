@@ -49,7 +49,7 @@ if [ -n "$(gh_env_val GITHUB_APP_ID)" ] \
 │
 │ I can switch the scope off temporarily — machine-local
 │ override only, the committed profile stays as it is —
-│ and continue into learning mode. `learn-off` offers to
+│ and continue into learning mode. \`learn-off\` offers to
 │ restore it on the way out.
 └───────────────────────────────────────────────────────
 EOF

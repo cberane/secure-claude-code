@@ -269,7 +269,10 @@ cmd_sync() {
         name="$(cat "$ACTIVE_MARKER")"
     fi
     local active
-    active="$( [ -f "$ACTIVE_MARKER" ] && cat "$ACTIVE_MARKER" || true )"
+    active=""
+    if [ -f "$ACTIVE_MARKER" ]; then
+        active="$(cat "$ACTIVE_MARKER" 2>/dev/null)" || true
+    fi
     if [ "$active" != "$name" ]; then
         echo "sync: $name is not the active workspace (active: ${active:-none})"
         exit 2
@@ -428,7 +431,8 @@ KNOWN_PERMISSIONS="contents pull_requests issues administration workflows deploy
 # idempotent re-runs of add/init — so existing projects pick it up too.
 DENY_RULES='["Edit(.secure-container/**)","Write(.secure-container/**)","NotebookEdit(.secure-container/**)","Edit(egress/**)","Write(egress/**)","NotebookEdit(egress/**)"]'
 ensure_edit_deny() { # ensure_edit_deny <project-path>
-    local path="$1" f="$path/.claude/settings.json" tmp new
+    local path="$1" tmp new
+    local f="$path/.claude/settings.json"
     if [ ! -e "$f" ]; then
         mkdir -p "$path/.claude"
         printf '{\n  "permissions": {\n    "deny": %s\n  }\n}\n' "$DENY_RULES" > "$f"
