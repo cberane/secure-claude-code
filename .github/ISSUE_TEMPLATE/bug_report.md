@@ -11,7 +11,7 @@ labels: bug
 - Compose: <!-- docker compose version -->
 - `TOOLCHAINS` in `.env`:
 
-## `make doctor` output
+## `scc doctor` output
 
 <!-- Paste the check list (redact nothing — it contains no secrets). -->
 

@@ -18,7 +18,7 @@ Two qualifications, stated up front:
   vulnerability — a real but materially higher bar. Without that toolchain
   the sidecar does not exist.
 - The promise assumes a correctly configured setup: local overrides can
-  weaken the hardening, which is why `make doctor` exists and should run
+  weaken the hardening, which is why `scc doctor` exists and should run
   after every override change.
 
 ## Threat model
@@ -75,7 +75,7 @@ guard that is the sandbox's only path to it. See
 ## Verifying the posture
 
 ```sh
-make doctor
+scc doctor
 ```
 
 runs the hardening checks (non-root, empty capability set, read-only

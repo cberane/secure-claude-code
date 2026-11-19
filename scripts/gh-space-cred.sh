@@ -7,8 +7,8 @@
 # (plus the LFS content hosts, which authenticate separately).
 #
 # Reads the token FRESH on every invocation — so a host-side `make gh-renew`
-# rotation (1 h installation tokens) is picked up by the next git call with
-# no session restart.
+# (user-facing: `scc renew`) rotation (1 h installation tokens) is picked up
+# by the next git call with no session restart.
 #
 # Security property: git delivers credentials only to URLs matching the
 # configured `credential.<url>.*` section, so a `push https://evil/x.git`
@@ -28,8 +28,8 @@ esac
 if [ ! -s "$TOKEN_FILE" ]; then
     cat >&2 <<'EOF'
 GitHub token missing or expired. On the HOST, run:
-    make gh-token    # one-shot mint (human break-glass), or
-    make gh-renew    # keep a running session supplied (24-48h shape)
+    scc token        # one-shot mint (human break-glass), or
+    scc renew        # keep a running session supplied (24-48h shape)
 EOF
     exit 1
 fi

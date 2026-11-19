@@ -91,7 +91,7 @@ WARN_SESSION = @if [ -n "$$($(ENGINE) ps -q -f name='^claude-session$$')" ]; the
 
 .PHONY: help preflight build up down stop restart shell claude yolo doctor status update-sandbox-skills \
         workspaces workspace new-workspace add-workspace gh-token gh-renew gh-app gh-app-wire install-scc ws-prune ws-rm \
-        learn learn-off _learn-apply learned \
+        learn learn-off _learn-apply learned scope-off scope-on \
         keygen rotate-signing-key install-hooks prune prune-build prune-dind \
         certificates cert renew-certs \
         clean clean-dind \
@@ -306,19 +306,26 @@ learn: preflight ## Egress: Enter egress learning mode (open egress, logged; sig
 	@$(MAKE) --no-print-directory EGRESS_MODE=learning _learn-apply
 	@echo
 	@echo "LEARNING MODE ACTIVE — egress is OPEN (LAN + git hosts still denied)."
-	@echo "  * Start a FRESH session (make claude/yolo) — it runs without the"
+	@echo "  * Start a FRESH session (scc claude/yolo) — it runs without the"
 	@echo "    signing key; sessions started earlier still carry it: close them."
 	@echo "  * Do not mount secret-bearing projects while this mode is on."
-	@echo "  * Distill with 'make learned'; leave with 'make learn-off'."
+	@echo "  * Distill with 'scc egress learned'; leave with 'scc egress learn-off'."
 	@echo "  * Full guide: docs/egress.md"
 
 learn-off: ## Egress: Leave learning mode and rebake the proxy with the (updated) allowlist
+	@scripts/workspace.sh scope-restore
 	@rm -f .learning-mode
 	@$(MAKE) --no-print-directory EGRESS_MODE=allowlist _learn-apply
 	@echo
 	@echo "Learning mode OFF — allowlist enforced again. Rerun the task to"
 	@echo "verify the curated list is complete (blocked-domains catches gaps),"
-	@echo "and run 'make doctor' to confirm the posture is green."
+	@echo "and run 'scc doctor' to confirm the posture is green."
+
+scope-off: ## Egress: Switch the active workspace's GitHub scope off machine-locally (learning mode requires it; repo profile untouched)
+	@scripts/workspace.sh scope-off
+
+scope-on: ## Egress: Restore the GitHub scope after a temp scope-off (removes the override, re-applies)
+	@scripts/workspace.sh scope-on
 
 # Re-entered via $(MAKE) so the marker created/removed above is seen by a
 # fresh Makefile evaluation (COMPOSE/EGRESS_MODE are computed at parse time).

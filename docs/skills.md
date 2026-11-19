@@ -19,11 +19,9 @@ walks the physical target — a per-skill copy would lose them.
 
 One GitHub repo per line, optional `@ref`, a `# why` per line. Currently
 `https://github.com/addyosmani/agent-skills`. Add a line (with the reason),
-commit the file (Conventional Commits, signed), then:
-
-```sh
-make update-sandbox-skills    # or: scc maintain skills (docs/scc.md)
-```
+commit the file (Conventional Commits, signed), then refresh the skill
+sets with the repo's `update-sandbox-skills` target (Makefile layer —
+no `scc` command wraps it yet).
 
 Fresh shallow clone per run = latest available version, no incremental
 state. New sessions pick the skills up at start; restart a running session

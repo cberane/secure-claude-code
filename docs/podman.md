@@ -2,13 +2,15 @@
 
 ```sh
 systemctl --user enable --now podman.socket   # once — compose provider needs it
-make ENGINE=podman build
-make ENGINE=podman claude
+# .env:  ENGINE=podman
+scc build
+scc claude
 ```
 
-`ENGINE` must be given on the make command line; as a plain environment
-variable it would lose against the value in `.env` (or set it in `.env`
-permanently).
+`ENGINE` must be set explicitly: `ENGINE=podman` in `.env`, or passed
+after the `scc` arguments — `scc build ENGINE=podman` — where it rides
+along to the plumbing as a command-line variable (that overrides the
+`ENGINE` line in `.env`).
 
 Differences from Docker:
 
@@ -29,7 +31,7 @@ Differences from Docker:
 
 ## Not supported: the `docker` toolchain
 
-`TOOLCHAINS=...,docker` requires `ENGINE=docker`; `make preflight` rejects
+`TOOLCHAINS=...,docker` requires `ENGINE=docker`; preflight rejects
 the combination. The dind sidecar is the rootless dind image, and its
 rootlesskit needs to create a *nested* user namespace with a multi-range
 uid map — inside a rootless podman container that setuid `newuidmap` call

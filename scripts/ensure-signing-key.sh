@@ -58,7 +58,7 @@ provisioning run was interrupted (typically: jq was not installed).
 If the key was never registered at your forge (the usual case), delete the
 folder and rerun:
 
-    rm -r $SIGNING_DIR && make keygen
+    rm -r $SIGNING_DIR && scc tls keygen
 
 If it IS registered, recreate the metadata instead:
 

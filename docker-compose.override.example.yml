@@ -5,7 +5,7 @@
 # the Makefile adds it explicitly for podman.
 #
 # WARNING: an override can silently WEAKEN the hardening (extra mounts,
-# capabilities, network changes). Run `make doctor` after every change —
+# capabilities, network changes). Run `scc doctor` after every change —
 # it re-verifies the security posture.
 #
 # Copied unedited, this file is a harmless no-op.

@@ -28,7 +28,8 @@ inside the `dind-storage` volume and is invisible to a plain
 
 ## Common first-run errors
 
-- **`make preflight` fails** — it names the missing piece (engine, compose
+- **Preflight fails** (the same check runs inside `scc init` and
+  before every build/start) — it names the missing piece (engine, compose
   version, jq, `.env`, PROJECTS_DIR). Fix exactly that; every later
   target runs the same checks.
 - **"signing_key exists but key.meta is missing"** — an earlier

@@ -7,9 +7,10 @@
 # our dev CA is renewed in place (same file names, current SAN policy,
 # domain taken from the subject CN). Foreign certs are left alone.
 #
-#   --auto : hook form used by `make build/up/shell/claude/yolo` — silent
+#   --auto : hook form used by `make build/up/shell/claude/yolo`
+#            (`scc build` / `scc shell` / `scc claude` / `scc yolo`) — silent
 #            no-op when no dev CA is provisioned ("serves HTTPS" is simply
-#            'make certificates' has been run).
+#            'make certificates' (or `scc tls certs`) has been run).
 set -euo pipefail
 
 auto=0

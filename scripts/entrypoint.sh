@@ -103,7 +103,8 @@ git config --global core.fsmonitor false
 # Active only when the workspace's merged config declares one (the GITHUB_*
 # keys reach the container via compose env_file — no extra plumbing). The
 # mounted token is read fresh on every git call, so host-side rotation
-# (make gh-renew, 1 h installation tokens) applies without a restart. The
+# (make gh-renew, 1 h installation tokens — user-facing `scc renew`) applies
+# without a restart. The
 # hard boundary is the token's mint-time repositories scope; this helper is
 # transport convenience. SSH remote URLs never authenticate (no SSH keys in
 # the sandbox, and ssh.github.com stays proxy-denied in every mode).

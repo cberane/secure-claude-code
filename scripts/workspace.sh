@@ -10,9 +10,9 @@
 #     (.secure-container/egress/allowlist.txt, "# why"-documented). The
 #     machine-local workspaces/<name>.env then only holds a reference
 #     (SECURE_PROJECT_PATH=<abs host path>) plus machine-only overrides.
-#     Created with: make add-workspace PROJECT=~/projects/<name>
+#     Created with: scc ws add PROJECT=~/projects/<name>
 #   * machine-local (legacy): the whole definition lives in
-#     workspaces/<name>.env as before. Created with: make new-workspace.
+#     workspaces/<name>.env as before. Created with: scc ws new NAME=<name>.
 #
 # The merge chain is: workspaces/common.env →
 # <SECURE_PROJECT_PATH>/.secure-container/workspace.env → workspaces/<name>.env
@@ -363,7 +363,7 @@ cmd_new() {
 
     # (seed values come from the dup-guard block above)
     cat > "$ws" <<EOF
-# Workspace '$name' — applied with: make workspace NAME=$name
+# Workspace '$name' — applied with: scc ws switch NAME=$name
 # Merged over workspaces/common.env (this file wins on duplicate keys).
 
 # REQUIRED: absolute host path mounted at /workspace (the only writable bind mount).
@@ -392,11 +392,11 @@ EGRESS=allowlist
 
 # Extra egress domains for THIS workspace: one squid domain per line in
 #   workspaces/$name.allowlist.txt
-# (baked into the proxy on switch; 'make denied' shows what got blocked).
+# (baked into the proxy on switch; 'scc denied' shows what got blocked).
 #
 # For a project REPO, prefer the repo-anchored model instead (config lives
 # in the repo, survives machine loss):
-#   make add-workspace PROJECT=<path>
+#   scc ws add PROJECT=<path>
 EOF
     echo "Created $ws — review/edit it, then activate with:"
     echo "    scc ws switch NAME=$name"
@@ -415,6 +415,48 @@ kebab_case() {
 # Permissions the installation token may carry; the mint script always sends
 # exactly this merged set (never installation-default scope — docs/github.md).
 KNOWN_PERMISSIONS="contents pull_requests issues administration workflows deployments actions"
+
+# ensure_edit_deny <path> — deny Write/Edit on the profile folder AND the
+# per-project egress/ allowlist in the project's .claude/settings.json:
+# both are committed repo truth (.secure-container/ = toolchains, egress
+# posture, GitHub scope; egress/allowlist.txt = the exfiltration perimeter)
+# that the sandbox agent must never edit from inside a session — changes
+# go through the HOST ACTION protocol and the host instead. This is also
+# why the agent only PRINTS the allowlist line now. Creates the file when
+# missing, merges the rules into an existing one (idempotent; jq is a hard
+# prerequisite, docs/setup.md). Runs on every registration — including
+# idempotent re-runs of add/init — so existing projects pick it up too.
+DENY_RULES='["Edit(.secure-container/**)","Write(.secure-container/**)","NotebookEdit(.secure-container/**)","Edit(egress/**)","Write(egress/**)","NotebookEdit(egress/**)"]'
+ensure_edit_deny() { # ensure_edit_deny <project-path>
+    local path="$1" f="$path/.claude/settings.json" tmp new
+    if [ ! -e "$f" ]; then
+        mkdir -p "$path/.claude"
+        printf '{\n  "permissions": {\n    "deny": %s\n  }\n}\n' "$DENY_RULES" > "$f"
+        echo "settings: created $f — deny writes to .secure-container/ and egress/"
+        return 0
+    fi
+    command -v jq >/dev/null 2>&1 \
+        || die "jq is required to merge $f — install jq (docs/setup.md)"
+    new="$(jq --argjson rules "$DENY_RULES" '
+        .permissions //= {}
+        | (.permissions.deny //= [])
+        | . as $cfg
+        | ($cfg.permissions.deny) as $deny
+        | [$rules[] | select(. as $r | ($deny | index($r)) | not)] as $add
+        | if ($add | length) > 0
+          then .permissions.deny = ($deny + $add)
+          else .
+          end' "$f")" || die "could not parse $f — invalid JSON?"
+    if [ -n "$new" ] \
+        && [ "$(printf '%s' "$new" | jq -S .)" != "$(jq -S . "$f" 2>/dev/null)" ]; then
+        tmp="$(mktemp)"
+        printf '%s\n' "$new" > "$tmp"
+        mv "$tmp" "$f"
+        echo "settings: added .secure-container/ + egress/ write-deny rules to $f"
+    else
+        echo "settings: $f already denies writes to .secure-container/ and egress/"
+    fi
+}
 
 cmd_add() {
     local path="${1:-}" name="${2:-}"
@@ -435,6 +477,9 @@ cmd_add() {
     # duplicate prevention + idempotent re-registration (one path, one definition)
     local rc_dup=0
     dup_check "$path" "$name" || rc_dup=$?
+    # deny rules are ensured on the idempotent path too — this is how
+    # already-onboarded projects pick them up (e.g. via scc init re-run)
+    ensure_edit_deny "$path"
     if [ "$rc_dup" = 3 ]; then return 0; fi
     mkdir -p "$WS_DIR"
     [ -f "$WS_DIR/$name.env" ] && die "$WS_DIR/$name.env already exists — pick another name (WS=<name>)"
@@ -472,7 +517,7 @@ EOF
         # --- egress allowlist template (the "# why" convention) ---------------
         cat > "$path/egress/allowlist.txt" <<'EOF'
 # Per-project egress domains, baked into the sandbox proxy on
-# 'make reload-egress'. One squid dstdomain per line; document EACH domain
+# 'scc egress reload'. One squid dstdomain per line; document EACH domain
 # with a trailing "# why" — this file is the durable record. Exact host
 # beats wildcard ('.api.stripe.com' also matches the apex).
 # git remote hosts are NOT allowed here (GITHUB_* scope opens those).
@@ -493,11 +538,16 @@ with the repo — a fresh machine needs only:
 Contents:
 
 * \`workspace.env\` — the workspace profile (toolchains, egress posture,
-  optional GitHub scope).
+  optional GitHub scope). The sandbox agent may NOT write here — nor into
+  the project's \`egress/\` allowlist: both carry committed repo truth, and
+  the project's .claude/settings.json carries matching deny rules.
+  Changes go through you on the HOST ACTION protocol, which the agent now
+  answers by PRINTING the exact line instead of editing files.
 * \`/egress/allowlist.txt\` (repo root) — per-project egress domains, each
   documented with a \`# why\` comment; the proxy bakes them in on
-  \`make reload-egress\`. The in-sandbox agent extends this file at
-  \`/workspace/egress/allowlist.txt\` and waits for the host reload.
+  \`scc egress reload\`. The in-sandbox agent may NOT edit this file —
+  writes are denied by the project's .claude/settings.json — it PRINTS
+  the exact line to add and waits for you to reload on the host.
 * This README — what the folder is and how to use it.
 
 Secrets NEVER live here (it is committed): the GitHub App private key path
@@ -922,6 +972,91 @@ cmd_rm() {
     echo "  re-register later with: scc init <path>   (or: scc ws add PROJECT=<path>)"
 }
 
+########################################################################
+# scope off / on / restore
+########################################################################
+# Learning mode and a GitHub scope are mutually exclusive (docs/egress.md).
+# Instead of editing the repo's committed .secure-container/workspace.env,
+# scope-off writes an EMPTY-override block into the machine-local
+# workspaces/<active>.env — it wins the merge chain, so the scope is off
+# while the repo profile stays exactly as committed. scope-on removes the
+# block and re-applies; `scc egress learn-off` offers that automatically
+# (scope-restore). The block is marked, idempotent, and lives ONLY in the
+# machine-local definition file.
+SCOPE_MARK_BEGIN='# TEMP-SCOPE-OFF BEGIN — auto-added for learning mode (scc egress learn); scc egress scope-on removes it'
+SCOPE_MARK_END='# TEMP-SCOPE-OFF END'
+
+active_ws_name() {
+    cat "$ACTIVE_MARKER" 2>/dev/null || true
+}
+
+scope_off() {
+    local name ws_file answer
+    name="$(active_ws_name)"
+    [ -n "$name" ] || die "no active workspace"
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || die "workspaces/$name.env is missing"
+    if ! grep -q '^GITHUB_APP_ID=..*' "$ENV_FILE" 2>/dev/null \
+        || ! grep -q '^GITHUB_REPO=..*' "$ENV_FILE" 2>/dev/null; then
+        die "the active workspace '$name' has no GitHub scope — nothing to switch off"
+    fi
+    if grep -qF "$SCOPE_MARK_BEGIN" "$ws_file"; then
+        echo "workspace: the scope-off override is already present in $ws_file"
+    else
+        if [ "${SCOPE_ACK:-}" = yes ]; then
+            : # explicit acknowledgement (automation), proceed below
+        elif [ -t 0 ]; then
+            printf 'Switch the GitHub scope OFF in %s (machine-local override, the committed repo profile stays)? [y/N] ' "$ws_file"
+            read -r answer
+            case "$answer" in y|Y|yes) ;; *) die "scope-off declined — the scope is untouched" ;; esac
+        else
+            die "not a tty and SCOPE_ACK is not 'yes' — rerun interactively"
+        fi
+        {
+            echo ""
+            echo "$SCOPE_MARK_BEGIN"
+            echo "GITHUB_APP_ID="
+            echo "GITHUB_INSTALLATION_ID="
+            echo "GITHUB_REPO="
+            echo "$SCOPE_MARK_END"
+        } >> "$ws_file"
+        echo "workspace: wrote the temp scope-off override into $ws_file (repo profile untouched)"
+    fi
+    cmd_switch "$name"
+}
+
+scope_on() {
+    local name ws_file
+    name="$(active_ws_name)"
+    [ -n "$name" ] || die "no active workspace"
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || die "workspaces/$name.env is missing"
+    if ! grep -qF "$SCOPE_MARK_BEGIN" "$ws_file"; then
+        die "no scope-off override found in $ws_file — the scope was never switched off (or already restored)"
+    fi
+    sed -i "/^${SCOPE_MARK_BEGIN//\//\\/}/,/^${SCOPE_MARK_END//\//\\/}/d" "$ws_file"
+    echo "workspace: removed the temp scope-off override from $ws_file"
+    cmd_switch "$name"
+}
+
+scope_restore() { # called by `make learn-off` (user: `scc egress learn-off`) — offer undoing a temp scope-off
+    local name ws_file answer
+    name="$(active_ws_name)"
+    [ -n "$name" ] || return 0
+    ws_file="$WS_DIR/$name.env"
+    [ -f "$ws_file" ] || return 0
+    grep -qF "$SCOPE_MARK_BEGIN" "$ws_file" || return 0
+    echo "workspace: a temp scope-off override is still present in $ws_file"
+    if [ -t 0 ]; then
+        printf 'Restore the GitHub scope now (removes the override and re-applies)? [y/N] '
+        read -r answer
+        case "$answer" in y|Y|yes) scope_on ;; *) echo "workspace: kept the override — restore later with: scc egress scope-on" ;; esac
+    else
+        echo "workspace: kept it (not a tty) — restore later with: scc egress scope-on"
+    fi
+    return 0
+}
+
 case "${1:-}" in
     list)    cmd_list ;;
     current) cmd_current ;;
@@ -931,8 +1066,11 @@ case "${1:-}" in
     switch)  shift; cmd_switch "$@" ;;
     prune)   cmd_prune ;;
     rm)      shift; cmd_rm "$@" ;;
+    scope-off) scope_off ;;
+    scope-on)  scope_on ;;
+    scope-restore) scope_restore ;;
     *)
-        echo "usage: scripts/workspace.sh {list|current|sync [name]|new <name>|add <path> [name]|switch <name>|prune|rm [name]}" >&2
+        echo "usage: scripts/workspace.sh {list|current|sync [name]|new <name>|add <path> [name]|switch <name>|prune|rm [name]|scope-off|scope-on|scope-restore}" >&2
         exit 2
         ;;
 esac

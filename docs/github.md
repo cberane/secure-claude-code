@@ -50,7 +50,7 @@ per-project GitHub App ── mint ──> 1h installation token ──> secrets
 4. Register the workspace — the repo carries its own config:
 
    ```sh
-   make add-workspace PROJECT=~/projects/<repo>   # WS=<custom-name> optional
+   scc ws add PROJECT=~/projects/<repo>   # WS=<custom-name> optional
    ```
 
    This seeds `.secure-container/` (README.md, workspace.env with the
@@ -67,19 +67,19 @@ per-project GitHub App ── mint ──> 1h installation token ──> secrets
 5. Activate and mint:
 
    ```sh
-   make workspace NAME=<name>
-   make gh-token        # one-shot; pipes into the local `gh` when installed
-   make yolo            # or make claude / make shell
+   scc ws switch NAME=<name>
+   scc token            # one-shot; pipes into the local `gh` when installed
+   scc yolo             # or scc claude / scc shell
    ```
 
 ## Daily flow
 
 ```sh
-make gh-renew        # keeps the token fresh every ~50 min while the
+scc renew            # keeps the token fresh every ~50 min while the
                      # session runs — the shape for 24-48h agent runs,
                      # daily CI pushes; stops itself when the session ends
-make gh-token        # one-shot human break-glass (also installs into gh)
-make denied          # egress review, as usual
+scc token            # one-shot human break-glass (also installs into gh)
+scc denied           # egress review, as usual
 ```
 
 Inside the session (scope active): `git push/pull/fetch` to the scoped
@@ -91,7 +91,7 @@ transport never authenticates; `ssh.github.com` stays proxy-denied in
 every mode.
 
 Token expired and no refresher? Pushes fail with the helper's hint — run
-`make gh-renew` / `make gh-token` on the host.
+`scc renew` / `scc token` on the host.
 
 ### origin/HEAD bookkeeping
 
@@ -107,7 +107,7 @@ that can't be reached just prints the recovery line
 
 ## Egress scope
 
-`make workspace` writes `egress/allowlist.git-scope.txt` — exactly
+`scc ws switch` writes `egress/allowlist.git-scope.txt` — exactly
 `github.com api.github.com uploads.github.com .githubusercontent.com` —
 which `squid.conf` consults BEFORE the allowlist. Without a scope file git
 hosts are proxy-denied in every posture (stronger than the old
@@ -143,7 +143,7 @@ volume list).
   (read endpoints); with a token present, authenticated writes against the
   SCOPED repo(s) become possible (gists excluded by permissions).
 - The consenting human gates every mint (`typed yes`, `GITHUB_ACK=yes` for
-  automation); `gh-renew` keeps minting while a session lives — if the
+  automation); `scc renew` keeps minting while a session lives — if the
   host agent runs unattended, it could mint silently, bounded by scope
   and TTL. This is accepted: after the transition, no AI agents run on
   the host at all.

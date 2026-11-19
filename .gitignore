@@ -10,6 +10,9 @@
 .env.pre-workspaces
 .env.pre-workspaces.*
 
+# --- graphify CLI output (knowledge-graph dumps) — regenerable, never committed
+graphify-out/
+
 # --- Secrets (docs/signing.md): host-only, never committed -----------------
 secrets/*
 !secrets/.gitkeep

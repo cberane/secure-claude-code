@@ -1,13 +1,13 @@
 ---
 name: new-workspace
-description: Create a named workspace profile (workspaces/<name>.env) for the sandbox — gather project dir, toolchains and egress needs interactively, seed the definition and optional per-workspace allowlist fragment, then offer to activate it with make workspace. Use when the user wants to add, define or set up a workspace/profile for another project, or asks to switch to a project that has no workspace yet.
+description: Create a named workspace profile (workspaces/<name>.env) for the sandbox — gather project dir, toolchains and egress needs interactively, seed the definition and optional per-workspace allowlist fragment, then offer to activate it with scc ws switch. Use when the user wants to add, define or set up a workspace/profile for another project, or asks to switch to a project that has no workspace yet.
 ---
 
 # Create a workspace definition
 
 Automate the definition side of `docs/workspaces.md`. Run everything on
 the HOST (this repo's root). The mechanics are fixed — definitions in
-`workspaces/`, activation only via `make workspace NAME=<name>`, never a
+`workspaces/`, activation only via `scc ws switch NAME=<name>`, never a
 hand-written `.env` — do not deviate.
 
 ## Step 1 — Name
@@ -33,16 +33,16 @@ Ask for / determine, in one round if possible:
   explicitly wants unrestricted research egress, and spell out what it
   means: open but logged egress, signing key removed from sessions,
   doctor red while active. Recommend pairing it with empty `TOOLCHAINS`
-  (the confirm gate in `make learn` exists for good reason).
+  (the confirm gate in `scc egress learn` exists for good reason).
 - **Extra domains** — does the project talk to APIs beyond the toolchain
   registries? Candidates come from the user, from project config
-  (`.env.example`, service configs), or from `make denied` output of past
+  (`.env.example`, service configs), or from `scc denied` output of past
   sessions.
 
 ## Step 3 — Write the definition
 
 ```sh
-make new-workspace NAME=<name>
+scc ws new NAME=<name>
 ```
 
 This seeds `workspaces/common.env` on first use and creates
@@ -61,18 +61,18 @@ is machine-global.
 Show a short summary of the definition, then offer:
 
 ```sh
-make workspace NAME=<name>
+scc ws switch NAME=<name>
 ```
 
 Warn beforehand when the switch will be disruptive: a running
 `claude-session` dies on restart (the script prompts for this), and a
-`TOOLCHAINS` change triggers `make build`. If the user declines, stop —
+`TOOLCHAINS` change triggers `scc build`. If the user declines, stop —
 the definition is complete and can be activated any time.
 
 ## Step 5 — Verify (only if activated)
 
 - `scripts/workspace.sh current` should report ".env is in sync".
-- For `EGRESS=allowlist` workspaces, suggest `make doctor`.
-- For `EGRESS=learning`, remind: distill with `make learned`, leave with
-  `make learn-off` (or by switching to a hardened workspace — that runs
-  `learn-off` automatically).
+- For `EGRESS=allowlist` workspaces, suggest `scc doctor`.
+- For `EGRESS=learning`, remind: distill with `scc egress learned`, leave
+  with `scc egress learn-off` (or by switching to a hardened workspace —
+  that runs `learn-off` automatically).

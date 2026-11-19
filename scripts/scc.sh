@@ -132,6 +132,8 @@ egress|egress reload-ingress|recreate only the ingress after a port/config chang
 egress|egress learn|open + log ALL egress for one research pass (signing key removed)|docs/egress.md
 egress|egress learn-off|leave learning mode and rebake the proxy with the allowlist
 egress|egress learned|distill the logged domains into a minimal allowlist
+egress|egress scope-off|switch the active workspace's GitHub scope off machine-locally (repo untouched) — learning mode requires it
+egress|egress scope-on|restore the scope after a temp scope-off (removes the override, re-applies)
 egress|egress denied|show the proxy's denied domains
 egress|denied|same as scc egress denied
 egress|egress allowlist|where to edit the per-project allowlist (prints instructions)
@@ -360,6 +362,10 @@ cmd_egress() {
             ishelp "${1:-}" && { help_detail "egress learn-off"; return 0; }
             run_make learn-off
             ;;
+        scope-off|scope-on)
+            ishelp "${1:-}" && { help_detail "egress $sub"; return 0; }
+            run_make "$sub"
+            ;;
         learned)
             ishelp "${1:-}" && { help_detail "egress learned"; return 0; }
             run_make learned
@@ -373,7 +379,7 @@ cmd_egress() {
             ;;
         *)
             table_view egress >&2
-            echo "scc egress: unknown '$sub' (reload|learn|learn-off|learned|denied)" >&2
+            echo "scc egress: unknown '$sub' (reload|learn|learn-off|learned|denied|scope-off|scope-on)" >&2
             return 2
             ;;
     esac

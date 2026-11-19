@@ -4,10 +4,11 @@
 #
 #   mint-cert.sh <domain> <out-dir> [basename]
 #
-# Called by `make cert DOMAIN=... [DIR=...]` and by renew-certs.sh. Leafs
-# are deliberately short-lived (CERT_DAYS, default 3 days — long enough to
-# survive a weekend YOLO session); renewal is automatic on make
-# build/up/session start and manual via `make renew-certs`.
+# Called by `make cert DOMAIN=... [DIR=...]` (user: `scc tls cert DOMAIN=...`)
+# and by renew-certs.sh. Leafs are deliberately short-lived (CERT_DAYS,
+# default 3 days — long enough to survive a weekend YOLO session); renewal is
+# automatic on make build/up/session start and manual via `make renew-certs`
+# (user: `scc tls renew`).
 set -euo pipefail
 
 usage="usage: mint-cert.sh <domain> <out-dir> [basename]   (scc tls cert DOMAIN=myapp.test [DIR=subdir])"

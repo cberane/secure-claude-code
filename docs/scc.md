@@ -67,8 +67,7 @@ cd ~/projects/<repo>
 scc status
 ```
 
-Read-only feedback for the current folder (also `make status
-PROJECT=~/projects/<repo>`): whether it is already onboarded or fresh,
+Read-only feedback for the current folder: whether it is already onboarded or fresh,
 whether its workspace is registered and active and the generated `.env`
 is in sync, whether the GitHub App is wired and its 1 h token still
 valid, whether the sandbox containers are up, and the project's egress
@@ -143,7 +142,7 @@ project folder, and are equally valid from anywhere.
 | Group | Commands | Notes |
 |---|---|---|
 | **runs** | `scc claude` / `scc yolo` / `scc shell` / `scc run build\|up\|down\|stop\|restart` | session lifecycle |
-| **status** | `scc status [PATH]` (read-only per-folder feedback) | also `make status PROJECT=…` |
+| **status** | `scc status [PATH]` (read-only per-folder feedback) | — |
 | **GitHub** | `scc token` (1 h mint + host gh), `scc renew` (refresh loop beside a session), `scc gh app`, `scc gh app-rescue KEY=… [APP_ID=…]` | docs/github.md |
 | **workspaces** | `scc ws list` / `scc ws switch NAME=x` / `scc switch x`, `scc ws add PROJECT=…`, `scc ws new NAME=…`, `scc ws prune` | docs/workspaces.md |
 | **egress** | `scc egress reload` / `scc egress learn` / `learn-off` / `learned` / `denied` / `allowlist` | docs/egress.md |
@@ -154,9 +153,10 @@ project folder, and are equally valid from anywhere.
 
 Direct shortcuts exist for the daily verbs (`scc claude`, `scc token`,
 `scc denied`, …) and all appear in the bare listing; group-prefixed forms
-keep the surface enumerable. Flags map to the make variables you already
-know (`DOMAIN=`, `KEY=`, `WS=`, `FORCE=1` — pass them as environment or
-after the arguments).
+keep the surface enumerable. Flags map to the plumbing variables you
+already know (`DOMAIN=`, `KEY=`, `WS=`, `FORCE=1` — pass them as
+environment or after the arguments; lifecycle verbs forward trailing
+`VAR=value` arguments to the command line, where they override `.env`).
 
 ## Conventions kept
 

@@ -10,7 +10,8 @@
 #
 #   scripts/gh-app-setup.sh <repo-path> [name]
 #
-# Requires an existing .secure-container/ (make add-workspace PROJECT=…).
+# Requires an existing .secure-container/ (scc ws add PROJECT=…, or make
+# add-workspace PROJECT=…).
 # Writes:
 #   ~/.config/secure-container/github-apps/<slug>.pem   (mode 600, host-only)
 #   <repo>/.secure-container/workspace.env   GITHUB_APP_ID / _INSTALLATION_ID /
@@ -127,7 +128,7 @@ if [ "${1:-}" = "--wire" ]; then
 gh-app-setup: the App ID is needed to authenticate as the app (JWT 'iss').
 Open https://github.com/settings/apps/ and your app's page — the About
 box lists 'App ID' as a number. Then rerun with APP_ID=that number:
-    make gh-app-wire PROJECT=$repo KEY=$pem_in APP_ID=<id>
+    scc gh app-rescue PROJECT=$repo KEY=$pem_in APP_ID=<id>
 EOF
         exit 1
     fi

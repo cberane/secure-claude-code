@@ -39,10 +39,10 @@ Git hosts are NOT part of any of these: the only git-host source is the
 generated `egress/allowlist.git-scope.txt` (docs/github.md), consulted by a
 dedicated squid ACL that runs before the allowlist.
 
-Apply a change to the base list with **`make reload-egress`** — it reruns
+Apply a change to the base list with **`scc egress reload`** — it reruns
 the project merge (unconditionally — a stale copy can't survive a
 container rebuild), rebuilds and recreates only the proxy, so a running
-session and any nested containers survive. (`make restart` would tear down
+session and any nested containers survive. (`scc restart` would tear down
 the whole stack, including the dind sidecar and every nested container.)
 
 ## When a request is blocked
@@ -51,11 +51,11 @@ A denied request fails with a proxy **403** (for HTTPS: "CONNECT tunnel
 failed, response 403"). This is policy, not breakage — do not retry or
 work around it. From inside the sandbox, `blocked-domains` lists every
 domain denied since the last proxy restart in a `HOST ACTION REQUIRED`
-box; from the host, `make denied` prints the same report. Then:
+box; from the host, `scc denied` prints the same report. Then:
 
 1. Review the list. Add **only** the domains the task genuinely needs to
    `egress/allowlist.txt`.
-2. `make reload-egress`.
+2. `scc egress reload`.
 3. Continue — the agent retries and the request now succeeds.
 
 ## Common pitfalls
@@ -73,7 +73,7 @@ box; from the host, `make denied` prints the same report. Then:
   `example.com` and every subdomain. Prefer exact hostnames; use a
   `.parent.tld` wildcard only when you've seen several sibling subdomains
   from one organization.
-- **The denial log resets on proxy restart.** `make reload-egress` (and
+- **The denial log resets on proxy restart.** `scc egress reload` (and
   entering/leaving learning mode) truncates it, so `blocked-domains`
   reports only what was denied *since* the last restart. Capture the list
   before reloading if you need it.
@@ -91,15 +91,15 @@ loop: run one open pass that logs every contacted domain, then distill the
 minimal allowlist from what was actually used, then lock back down.
 
 ```sh
-make learn        # egress OPEN (logged); LAN + git hosts still denied
-make claude       # start a FRESH session — it runs WITHOUT the signing key
+scc egress learn     # egress OPEN (logged); LAN + git hosts still denied
+scc claude           # start a FRESH session — it runs WITHOUT the signing key
 # ... run the research task ...
-make learned      # distilled report: hits per domain, wildcard candidates,
-                  # paste-ready allowlist block on stdout
+scc egress learned   # distilled report: hits per domain, wildcard candidates,
+                     # paste-ready allowlist block on stdout
 # curate, append the domains you actually need to egress/allowlist.txt
-make learn-off    # allowlist enforced again; proxy rebaked
+scc egress learn-off # allowlist enforced again; proxy rebaked
 # rerun the task under enforcement — blocked-domains catches any straggler
-make doctor       # confirm the posture is green again
+scc doctor           # confirm the posture is green again
 ```
 
 ### Turn the toolchains OFF first
@@ -121,11 +121,11 @@ So before a learning session, on the host:
 ```sh
 # in .env:
 TOOLCHAINS=
-make build
-make learn
+scc build
+scc egress learn
 ```
 
-`make learn` **enforces this as a checkpoint**: if any toolchain is active
+`scc egress learn` **enforces this as a checkpoint**: if any toolchain is active
 it prints the exposure and refuses to continue until you type `yes`
 (automation can set `LEARN_ACK=yes`). It is a deliberate speed bump, not a
 lock — but the recommendation is to disable the toolchains, not to click
@@ -138,15 +138,22 @@ Keeps (the invariants never bend):
 - **LAN deny** — private/link-local ranges stay unreachable.
 - **Git-host deny** — `egress/git-hosts-deny.txt` keeps the push/pull
   hosts blocked; GitHub read endpoints are open like everything else.
-  Workspaces carrying a GITHUB scope can never enter learning mode
-  (refused at switch and at the `make learn` gate), and the token mount is
+  Workspaces carrying a GITHUB scope normally cannot enter learning mode
+  (refused at switch and at the learn gate), and the token mount is
   stripped by the `!override` volume list regardless (docs/github.md).
+  The learn gate can do this fix itself on a terminal: answer yes to the
+  offer and it writes a marked, empty `GITHUB_*` override into the
+  machine-local `workspaces/<name>.env` — the merge chain's last word —
+  and re-applies; the committed `.secure-container/workspace.env` is
+  never touched. `scc egress learn-off` offers the restore on the way
+  out; the manual spellings are `scc egress scope-off` / `scc egress
+  scope-on` (automation: `SCOPE_ACK=yes`).
 - **No signing key** — it is removed from sessions entirely (commits are
   unsigned), because the readable key is only defensible while egress
   offers no way out. The entrypoint refuses to start a learning session
-  that somehow still has the key. Sessions started *before* `make learn`
-  keep their key — close them.
-- **`make doctor` stays red** while the mode is active, by design: an open
+  that somehow still has the key. Sessions started *before* `scc egress
+  learn` keep their key — close them.
+- **`scc doctor` stays red** while the mode is active, by design: an open
   egress must never produce a passing doctor.
 
 Gives up (accepted, bounded exposure while active):
@@ -157,7 +164,7 @@ Gives up (accepted, bounded exposure while active):
   short — enter, capture, distill, leave. It is a capture instrument, not
   a place to live.
 
-### The `make learned` report
+### The `scc egress learned` report
 
 `learned-domains` reads the *successful* traffic (the counterpart of
 `blocked-domains`, which reads denials) and produces:
@@ -169,6 +176,6 @@ Gives up (accepted, bounded exposure while active):
 - a paste-ready `domain # N hits` block on stdout to curate into
   `egress/allowlist.txt`.
 
-After pasting and `make learn-off`, **rerun the task under enforcement** —
+After pasting and `scc egress learn-off`, **rerun the task under enforcement** —
 that proves the curated list is complete, and any straggler surfaces
 through the normal `blocked-domains` box.

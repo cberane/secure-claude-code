@@ -34,7 +34,8 @@ requires a kernel/userns vulnerability. Details:
 - Docker Engine with compose plugin **≥ 2.24**, or rootless podman.
 - `make`, `bash`, `jq`, `ssh-keygen`, `git`.
 
-`make preflight` verifies all of this with actionable messages.
+Preflight verifies all of this with actionable messages — it runs inside
+`scc init` and automatically before every build/start.
 
 ## Getting started
 

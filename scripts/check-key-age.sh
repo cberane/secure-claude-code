@@ -2,7 +2,7 @@
 # Signing-key age check — single source of truth for the rotation policy.
 #
 # Called from three places:
-#   1. make claude / make shell (host, --context session)
+#   1. make claude / make shell (host, --context session; user-facing: scc claude / scc shell)
 #   2. scripts/doctor.sh          (--context doctor)
 #   3. git-hooks/pre-commit       (container, --context precommit)
 #
@@ -61,7 +61,7 @@ print_block() {
 │
 │ Run on the HOST, then confirm here:
 │
-│   make rotate-signing-key
+│   scc tls rotate-key
 │
 ${tail}└───────────────────────────────────────────────────────
 EOF

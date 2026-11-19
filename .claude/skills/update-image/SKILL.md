@@ -103,10 +103,10 @@ nothing else in either file.
 ## Step 5 — Build
 
 ```sh
-make build
+scc build
 ```
 
-`make build` covers the toolchains selected by `TOOLCHAINS` in `.env`; if
+`scc build` covers the toolchains selected by `TOOLCHAINS` in `.env`; if
 that list does not include `php`, additionally verify the composer path
 still builds: `docker build --build-arg TOOLCHAINS=php,python .`
 (respect `ENGINE`).
@@ -116,7 +116,7 @@ still builds: `docker build --build-arg TOOLCHAINS=php,python .`
 Both must succeed:
 
 ```sh
-make doctor    # ALL checks green, exit code 0 (19 core + any toolchain checks)
+scc doctor     # ALL checks green, exit code 0 (19 core + any toolchain checks)
 ```
 
 ```sh
@@ -130,10 +130,10 @@ $(ENGINE from .env) compose run --rm -T claude-code claude --version
    claude-sandbox-egress-proxy:rollback`). If a rollback tag is held by a
    RUNNING container, untag with `-f` (safe — only removes the name) and do
    not touch the container itself.
-2. Reclaim disk space: `make prune` (engine-aware `image prune -f`; the
-   superseded images are dangling now, nothing tagged is removed). Check
-   `make df` afterwards — if the build cache has grown large, mention
-   `make prune-build` to the user rather than running it unasked.
+2. Reclaim disk space: `scc maintain prune` (engine-aware `image prune -f`;
+   the superseded images are dangling now, nothing tagged is removed). Check
+   `scc df` afterwards — if the build cache has grown large, mention
+   `scc maintain prune-build` to the user rather than running it unasked.
 3. Commit (signed, conventional, no attribution):
    `build: bump pinned image and tool versions`
    with a body listing each pin old → new.
@@ -149,8 +149,8 @@ On failure of ANY step after 4 (build error, red doctor check, wrong
 1. `git restore Dockerfile egress/Dockerfile`
 2. Restore images:
    `docker tag claude-sandbox-claude-code:rollback claude-sandbox-claude-code:latest`
-   (same for `egress-proxy`), then `make build` to be safe.
-3. Re-run `make doctor` and confirm it is green again — the sandbox must be
+   (same for `egress-proxy`), then `scc build` to be safe.
+3. Re-run `scc doctor` and confirm it is green again — the sandbox must be
    left in its previous working state.
 4. Report: which pin caused the failure, the exact error output, and that
    everything was rolled back. Suggest retrying with the failing component
